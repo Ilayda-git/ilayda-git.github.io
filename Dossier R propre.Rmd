@@ -1,0 +1,466 @@
+---
+title: "Etude du sondage réalisé par les étudiants de Tours"
+author: "YILMAZ Ilayda et QUARTIER Laurine"
+date: 18/12/23
+output: 
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_float: yes
+    number_section: no
+    theme: "cerulean"
+    df_print: paged
+    dev: png
+    keep_md: yes
+    standalone: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r packages}
+library(knitr)
+library(kableExtra)
+library(ggplot2)
+library(ggridges)
+library(forcats)
+library(patchwork)
+library(readr)
+library(dplyr)
+```
+
+```{r données, echo=FALSE}
+data <- data <- read_delim("data/sondage_version_finale.csv", delim = ";")
+```
+
+
+### Présentation du sujet 
+
+A l'aide d'un sondage réalisé via *Célène* sur des étudiants de Licence d'Economie et de Gestion de l'[université de Tours](https://www.univ-tours.fr/), nous nous sommes posées la question suivante : 
+
+**Quel est l'impact du nombre de soirées réalisées par semaine sur le temps de travail des répondants selon leur année d'étude ? Cette variation diffère-t-elle selon le genre de l'individu ?**
+
+En observant les données de ce sondage, nous avons tenté de répondre à cette question.
+Ce sondage compte **`r nrow(data)`** répondants dont **`r sum(data$Filière == "Économie")`** soit **`r round(sum(data$Filière == "Économie")/nrow(data)*100, 1)`%** en filière Economie.
+Les représentations ci-dessous permettent de présenter la répartition des étudiants selon deux variables :
+
+
+```{r graphI, echo=FALSE, fig.height=4, fig.width=8, fig.align='center'}
+par(mfrow = c(1,2))
+eff <- table(data$Genre)
+
+barplot_genre <- barplot(eff,
+                         main = "Répartition des étudiants/tes \n par genre",
+                         font.main = 1,
+                         col = "steelblue1",
+                         border = "white",
+                         axes = FALSE,
+                         space = 4) 
+text(x = barplot_genre,
+     y = eff,
+     label = eff,
+     pos = 1,
+     col = "white",
+     font = 2)
+piechart <- pie(table(data$`Année d'étude`),
+    border = "white",
+    col = c("darkseagreen2", "slategray2", "paleturquoise2"),
+    main = "Répartition des répondants/tes selon \nleur année d'étude",
+    font.main = 1,
+    labels = c("L1 (131)", "L2 (33)", "L3 (44)"))
+
+```
+
+```{r, echo=FALSE, results='hide'}
+l1 <- round(sum(data$`Année d'étude` == "L1")/nrow(data)*100)
+l2 <- round(sum(data$`Année d'étude` == "L2")/nrow(data)*100)
+l3 <- round(sum(data$`Année d'étude` == "L3")/nrow(data)*100)
+```
+
+
+Avec ces graphiques on peut noter qu'il y a **`r round(sum(data$Genre == "Masculin")/nrow(data)*100, 0)`%** de garçons dans les répondants du sondage. On remarque également que les L1 représentent **`r l1`%** des étudiants ayant répondu au sondage contre seulement **`r l2`%** de L2 et **`r l3`%** de L3.
+
+
+### 1. Nombre de soirées par semaine - Temps de travail 
+
+Dans un premier temps, nous allons étudier la répartition du nombre de soirées par semaine en moyenne des étudiants et leur temps de travail personnel scolaire séparément. 
+
+Nous avons modifié la variable Nombre de soirées par semaine en moyenne, de telle sorte que les modalités 0.25 et 0.5 soient comptabilisées dans la modalité 0, et que la modalité 4 soit comptabilisée dans la modalité 3. En effet, pour la suite de notre étude et la réalisation de nos différents graphiques et tableaux, nous trouvions plus simple le fait de travailler avec seulement des modalités entières. 
+
+De plus, très peu d'étudiants avaient répondu faire 4 soirées par semaine donc il nous semblait plus judicieux d'intégrer directement cette valeur à la modalité 3 soirées par semaine en moyenne.
+
+```{r graph1}
+data <- data |>
+  mutate(`Nombre de soirées par semaine en moyenne` = ifelse(`Nombre de soirées par semaine en moyenne` %in% c(0.25, 0.5), 0, `Nombre de soirées par semaine en moyenne`)) |>
+  mutate(`Nombre de soirées par semaine en moyenne` = ifelse(`Nombre de soirées par semaine en moyenne` %in% 4, 3, `Nombre de soirées par semaine en moyenne`))
+
+ggplot(data) +
+  aes(x = `Nombre de soirées par semaine en moyenne`) +
+  geom_density(alpha = 0.6,
+               fill = "aquamarine3",
+               col = "aquamarine3") +
+  labs(title = "Distribution du nombre de soirées réalisées par les \n répondants/tes par semaine ",
+       subtitle = "Les individus ayant répondu 0.25 et 0.5 soirées par semaine sont comptabilisés dans \n 0 soirées par semaine, et ceux ayant répondu 4 sont comptabilisés dans 3",
+       y = " ") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+```{r calculs, results='hide'}
+a <- sum(data$`Nombre de soirées par semaine en moyenne` == 0)
+b <- round(sum(data$`Nombre de soirées par semaine en moyenne` == 1)/nrow(data)*100, 0)
+```
+
+
+Avec ce graphique, on peut voir que **`r a`** étudiants, soit la moitié de tous les répondants, ne font pas de soirées. Un tiers (**`r b`%**) des étudiants font une soirée par semaine, mais peu font plus de 2 de soirées par semaine.
+
+
+```{r ajustement données}
+data <- data |>
+  filter(`Temps de travail personnel (scolaire) la semaine dernière en heure` <= 70)
+data$Temps_en_classes <- cut(data$`Temps de travail personnel (scolaire) la semaine dernière en heure`,
+                             breaks = c(0,2,4,6,8,10,20,30,40,50,60,70),
+                             include.lowest = TRUE,
+                             right = TRUE)
+```
+
+
+Nous avons choisi de supprimer les valeurs 160 et 170 de la variable temps de travail personnel scolaire par semaine, car ces valeurs nous paraissaient incohérentes. En effet une journée compte 24h, donc une semaine de 7 jours 168h. Cela nous semblait donc impossible d'avoir un temps de travail personnel scolaire de 160 ou 170 heures. 
+On peut imaginer que ces réponses peuvent être dues à un manque de sincérité de la part du répondant ou une mauvaise lecture, compréhension de la question. Mais ceci n'est pas le sujet de notre étude. 
+
+Nous avons également fait le choix de créer une nouvelle variable pour regrouper les différentes réponses à cette question en plusieurs intervalles pour plus de clarté dans cette représentation.
+
+
+```{r graph 1bis}
+ggplot(data) +
+  aes(x = Temps_en_classes) +
+  geom_bar(width = 0.7,
+           col = "white",
+           fill = "aquamarine3") +
+  labs(title = "Distribution des répondants/tes selon leur temps de \ntravail personnel scoalire par semaine",
+       x = "Temps de travail",
+       y = "Effectif") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+
+Comme le montre le graphique ci-dessus, la plupart des étudiants travaillent entre 0 et 6 heures par semaine pour leurs études. Ensuite plus le temps de travail par semaine est élevé, moins les effectifs sont élevés. On peut noter que très peu d'élèves ont un temps de travail personnel scolaire supérieur à 30 heures par semaine. 
+
+
+
+### 2. Impact du nombre de soirées sur le temps de travail
+
+Dans cette partie, nous allons étudier comment le temps de travail des étudiants est impacté par le nombre de soirées par semaine réalisées.
+
+```{r graph2}
+ggplot(data) +
+  aes(x = `Temps de travail personnel (scolaire) la semaine dernière en heure`, 
+      y = `Nombre de soirées par semaine en moyenne`) +
+  geom_violin(color = "white",
+              fill = "lightsteelblue1") +
+  xlab("Temps de travail") +
+  ylab("Nombre de soirées") +
+  ggtitle("Répartition du temps de travail en fonction du nombre de soirées") + 
+  coord_flip() + 
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+
+Nous pouvons constater que plus le nombre de soirées augmente, plus le temps de travail diminue. 
+
+En effet, on remarque que les étudiants ne faisant aucune soirée travaillent beaucoup par rapport aux autres et ceux faisant une soirée par semaine travaillent également un nombre d'heures conséquent. Cependant quand il s'agit de ceux allant deux ou trois fois par semaine en soirée, on peut voir qu'ils travaillent nettement moins.
+
+
+
+### 3. Nombre de soirées et temps de travail selon le genre, l'année d'étude
+
+A présent, nous allons analyser les données afin de déterminer si le nombre de soirées impacte différemment le temps de travail des étudiants selon leur : 
+
+* Année d'étude
+* Genre
+
+Afin de mieux représenter le temps de travail des étudiants en fonction du nombre de soirées, nous avons créé deux fonction qui permettent de calculer la moyenne de leur temps de travail en fonction du nombre de soirées qu'ils réalisent par semaine selon l'année d'étude et le genre de l'individu.
+
+```{r fonction3}
+tpsmoy <- function(nb_soiree, annee){
+  moy <- data |>
+  filter(`Nombre de soirées par semaine en moyenne` == nb_soiree) |>
+  filter(`Année d'étude` == annee) |>
+  mutate(`Moy temps` = mean(`Temps de travail personnel (scolaire) la semaine dernière en heure`))
+  return(moy)
+}
+
+data0L1 <- tpsmoy(0, "L1")
+data0L2 <- tpsmoy(0, "L2")
+data0L3 <- tpsmoy(0, "L3")
+
+data1L1 <- tpsmoy(1, "L1")
+data1L2 <- tpsmoy(1, "L2")
+data1L3 <- tpsmoy(1, "L3")
+
+data2L1 <- tpsmoy(2, "L1")
+data2L2 <- tpsmoy(2, "L2")
+data2L3 <- tpsmoy(2, "L3")
+
+data3L1 <- tpsmoy(3, "L1")
+data3L2 <- tpsmoy(3, "L2")
+data3L3 <- tpsmoy(3, "L3")
+
+datamoy <- bind_rows(data0L1, data0L2, data0L3, data1L1, data1L2, data1L3, data2L1, data2L2, data2L3, data3L1, data3L2, data3L3)
+
+datamoy <- datamoy |>
+  select(`Nombre de soirées par semaine en moyenne`, `Moy temps`, `Année d'étude`) |>
+  distinct()
+```
+
+
+```{r graph3, fig.align='center'}
+ggplot(datamoy) +
+  aes(x = `Nombre de soirées par semaine en moyenne`,
+      y = `Moy temps`,
+      fill = `Année d'étude`) +
+  geom_col() + 
+  labs(title = "Temps de travail moyen des répondants/tes selon le nombre \n de soirées par semaine et l'année d'étude", 
+       x = "Nombre de soirées par semaine",
+       y = "Temps de travail moyen par semaine",
+       subtitle = "Les individus ayant répondu 0.25 et 0.5 soirées par semaine sont comptabilisés dans \n 0 soirées par semaine, et ceux ayant répondu 4 sont comptabilisés dans 3") +
+  theme_minimal() +
+  facet_wrap(~`Année d'étude`) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) +
+  scale_fill_manual(values = c("darkseagreen2", "slategray2", "paleturquoise2")) +
+  scale_color_manual(values = c("darkseagreen2", "slategray2", "paleturquoise2"))
+```
+
+
+Comme on peut le voir avec le graphique précédent, on retrouve la relation selon laquelle plus le nombre de soirées augmente, plus le temps de travail des étudiants diminue pour les L1 et L3. Cependant pour les L2, on ne peut pas en dire autant puisqu'on observe un temps de travail moyen par semaine nettement supérieur lorsque les étudiants font une soirée par semaine. Ceci est dû à quelques valeurs extrêmes de temps de travail dans notre base de données pour les L2 faisant une soirée par semaine.
+
+On remarque également que les L1 font plus de soirées par semaine, que les L2 et L3 qui eux sont répartis sur aucune, une ou deux soirées par semaine. On remarque donc qu'être en L1 ou en L2, L3 n'a pas le même impact sur le nombre de soirées par semaine et donc sur le temps de travail de l'individu. 
+
+Cependant, pour les individus ne réalisant aucune soirée par semaine on peut noter que les L1 et les L3 ont quasiment le même temps de travail moyen, on ne fait donc pas de différence selon l'année d'étude ici. 
+
+Mais si l'on regarde un nombre de soirées positif, on observe bien un lien entre l'année d'étude et l'impact du nombre de soirées sur le temps de travail : les L1 réalisant une soirée par semaine travaillent moins que les L3 pour un même nombre de soirées. 
+
+On observe aussi une différence de temps de travail pour les étudiants réalisant deux soirées par semaine : les L1 travaillent plus que les L2 et L3.
+
+
+```{r fonction3bis}
+tpsmoy <- function(nb_soiree, genre){
+  moy <- data |>
+  filter(`Nombre de soirées par semaine en moyenne` == nb_soiree) |>
+  filter(Genre == genre) |>
+  mutate(`Moy temps` = mean(`Temps de travail personnel (scolaire) la semaine dernière en heure`))
+  return(moy)
+}
+
+data0M <- tpsmoy(0, "Masculin")
+data0F <- tpsmoy(0, "Féminin")
+
+data1M <- tpsmoy(1, "Masculin")
+data1F <- tpsmoy(1, "Féminin")
+
+data2M <- tpsmoy(2, "Masculin")
+data2F <- tpsmoy(2, "Féminin")
+
+data3M <- tpsmoy(3, "Masculin")
+data3F <- tpsmoy(3, "Féminin")
+
+datamoy2 <- bind_rows(data0M, data0F, data1M, data1F, data2M, data2F, data3M, data3F)
+
+datamoy2 <- datamoy2 |>
+  select(`Nombre de soirées par semaine en moyenne`, `Moy temps`, Genre) |>
+  distinct()
+
+ggplot(datamoy2) +
+  aes(x = `Nombre de soirées par semaine en moyenne`,
+      y = `Moy temps`,
+      fill = Genre) +
+  geom_col(width = 0.5) +
+  labs(fill = "Genre",
+       title = "Temps de travail moyen des répondants/tes selon le nombre de \n soirées par semaine et le genre",
+       x = "Nombre de soirées",
+       y = "Temps de travail moyen par semaine",
+       subtitle = "Les individus ayant répondu 0.25 et 0.5 soirées par semaine sont \n comptabilisés dans 0 soirées par semaine, et ceux \n ayant répondu 4 sont comptabilisés dans 3") + 
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.title = element_text(hjust = 0.5))
+```
+
+
+On remarque également la même relation négative entre le nombre de soirées et le temps de travail moyen de l'étudiant ici. 
+
+En analysant selon le genre on observe que pour les répondants ne faisant pas de soirées, les filles travaillent plus que les garçons.
+
+Mais lorsqu'on s'intéresse aux étudiants faisant une soirée par semaine ou plus, on observe avec le graphique précédent que les garçons gardent un temps de travail moyen par semaine quasiment similaire qu'ils fassent une, deux ou trois soirées par semaine. 
+
+Pour les filles, on ne peut pas identifier la même observation. En effet, en étudiant les filles allant une et deux fois par semaine en soirée, on observe que le temps de travail moyen diminue avec le nombre de soirées qui augmente. Mais pour les L3 on remarque un temps de travail moyen équivalent pour les filles réalisant une et trois soirées par semaine. On peut expliquer cela par un nombre d'observation plus faible pour les individus ayant répondu faire trois soirées par semaine qui diminue la précision de notre graphique final.
+
+Donc selon le genre, le nombre de soirées par semaine n'a pas le même impact sur le temps de travail. 
+
+
+
+### 4. Analyse de possibles corrélations 
+
+Une étude des corrélations entre le temps de travail par semaine et l'année d'étude, le genre des étudiants va être réalisée dans cette partie.
+Pour cela nous allons créer une fonction qui va nous permettre d'effectuer plus facilement les tests du χ2. Une fonction afin de résumer les résultats des différents tests va également être créée.
+
+
+```{r fonction4}
+chi2.test <- function(x,y){
+  test <- chisq.test(x,y)
+  output <- c(min(test$expected),  
+              test$p.value)
+  names(output) <- c("min.eff.théorique", "p-value")
+  return(output)
+
+}
+```
+
+```{r test4, echo = FALSE, echo = FALSE, message = FALSE, warning=FALSE, results = 'hide'} 
+testTS <- chi2.test(data$`Temps de travail personnel (scolaire) la semaine dernière en heure`, data$`Nombre de soirées par semaine en moyenne`)
+
+testTA <- chi2.test(data$`Temps de travail personnel (scolaire) la semaine dernière en heure`, data$`Année d'étude`)
+
+testTG <- chi2.test(data$`Temps de travail personnel (scolaire) la semaine dernière en heure`, 
+         data$Genre)
+
+testSA <- chi2.test(data$`Nombre de soirées par semaine en moyenne`, data$`Année d'étude`)
+
+testSG <- chi2.test(data$`Nombre de soirées par semaine en moyenne`, data$Genre)
+
+```
+
+```{r fonction4bis}
+resumetest <- function(){
+  results <- c(round(testTS[2], 2), round(testTA[2], 4), round(testTG[2], 2), round(testSA[2], 2), round(testSG[2], 2))
+  names(results) <- c("Test temps de travail et soirées", "Test temps travail et année d'étude", "Test temps de travail et genre", "Test soirées et année d'étude", "Test soirées et genre")
+  return(results)
+}
+
+resumetest() |>
+  kable(align = "c",
+        col.names = c("p-value"),
+        caption = "<center>Tableau représentant les p-value des tests du χ2</center>") |>
+  kable_styling(position = "center",
+                full_width = FALSE,
+                bootstrap_options = c("striped", "bordered")) |>
+  column_spec(2,
+              background = "lightsalmon",
+              bold = TRUE,
+              color = "white")
+```
+
+
+Soit un seuil de significativité de **5%**. En observant les résultats des tests du χ2 résumés dans le tableau ci-dessus, on peut dire que le temps de travail dépend seulement de l'année d'étude.
+
+En effet, avec ce type de test, l'hypothèse nulle indique que les deux variables sont indépendantes. Cette hypothèse est rejetée lorsque la p-value du test est inférieure au seuil de significativité, soit ici **5%**. En regardant les résultats des autres tests, on a des p-values supérieures à **5%**. 
+
+Donc d'après les résultats de ces tests, le temps de travail est indépendant du nombre de soirées et du genre, et le nombre de soirées par semaine est indépendant du genre et de l'année d'étude de l'individu. Jusqu'ici ce n'est pas vraiment ce que l'on a pu observer avec les différents graphiques réalisés. Mais on peut penser que les résultats de ces tests, non représentatifs, de notre étude viennent de nos données et de la taille de notre échantillon. On peut donc laisser un doute sur la précision de ces résultats.
+
+
+
+### 5. Rythme de consommation d'alcool et nombre de soirées 
+
+En observant les données de notre sondage, on remarque la variable Rythme de consommation d'alcool. Il nous semblait pertinent d'étudier le lien éventuel entre le rythme de consommation d'alcool et le nombre de soirées par semaine. Nous allons pour cela réaliser un graphique, un tableau et un test du χ2.
+
+```{r graph5}
+data$`Rythme de consommation d'alcool` <- factor(data$`Rythme de consommation d'alcool`, levels = c("Jamais", "Moins d'une fois par semaine", "Moins d'une fois par mois", "Environ une fois par semaine", "Plusieurs fois par semaine"))
+
+ggplot(data) +
+  aes(x = `Nombre de soirées par semaine en moyenne`,
+      fill = `Rythme de consommation d'alcool`) +
+  geom_bar(width = 0.7) +
+  labs(title = "Rythme de consommation d'alcool et nombre \n de soirées par semaine",
+       x = "Nombre de soirées par semaine",
+       y = " ") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(hjust = 0.5),
+        plot.title = element_text(hjust = 0.5))
+```
+
+En observant le graphique ci-dessus, on observe qu'une grande part des étudiants n'allant jamais en soirée ne boivent jamais d'alcool.
+
+De plus en regardant les nombres de soirées plus élevés, on remarque que la plupart des étudiants réalisant plus d'une soirée sont ceux qui boivent le plus d'alcool, soit ceux qui consomment de l'alcool environ une fois par semaine et plusieurs fois par semaine. 
+
+A première vue, on peut s'attendre à une relation positive entre le rythme de consommation d'alcool et le nombre de soirées.
+
+```{r tableau5}
+table_alcool_soirees <- table(data$`Rythme de consommation d'alcool`, data$`Nombre de soirées par semaine en moyenne`) 
+table_alcool_soirees |>
+  kable(align = "c",
+        caption = "<center>Répondants/tes selon le rythme de consommation d'alcool et le nombre de soirées par semaine</center>") |>
+  kable_styling(full_width = FALSE,
+                position = "center",
+                bootstrap_options = c("striped", "bordered")) |>
+  column_spec(2, 
+              color = "white",
+              background = spec_color(table_alcool_soirees[,1],
+                                 direction = -1,
+                                 option = "plasma",
+                                 begin = 0.1,
+                                 end = 0.7)) |>
+  column_spec(3, 
+              color = "white",
+              background = spec_color(table_alcool_soirees[,2],
+                                 direction = -1,
+                                 option = "plasma",
+                                 begin = 0.1,
+                                 end = 0.7)) |>
+  column_spec(4, 
+              color = "white",
+              background = spec_color(table_alcool_soirees[,3],
+                                 direction = -1,
+                                 option = "plasma",
+                                 begin = 0.1,
+                                 end = 0.7)) |>
+  column_spec(5, 
+              color = "white",
+              background = spec_color(table_alcool_soirees[,4],
+                                 direction = -1,
+                                 option = "plasma",
+                                 begin = 0.1,
+                                 end = 0.7)) 
+```
+
+```{r fonction5, results = 'hide'}
+alcoolsoiree <- table_alcool_soirees |> data.frame()
+calcul <- function(occurence, nbsoiree){
+  donne <-  alcoolsoiree |>
+    filter(Var1 == occurence) |>
+    filter(Var2 == nbsoiree) |>
+    select(Freq) |>
+    pull() |>
+    round(1)
+  return(donne)
+}
+```
+
+
+En observant le tableau ci-dessus on peut déceler des observations plus précises notamment avec des valeurs en pourcentages. Afin de calculer certaines valeurs en pourcentages, nous avons créé une fonction qui permet de sélectionner certaines cases de notre tableau. Ensuite nous les avons exposées en pourcentages. 
+
+On remarque que les étudiants qui ne boivent jamais d'alcool représentent **`r round(calcul("Jamais", 0)/nrow(data)*100, 1)`%** des étudiants n'allant pas en soirée.
+
+Pour un nombre de soirées par semaine plus élevé, on observe que les répondants qui boivent le plus d'alcool, soit ceux qui boivent environ une fois par semaine et plusieurs fois par semaine, représentent une part conséquente et même de plus en plus élevée au fur et à mesure que le nombre de soirées par semaine augmentent : 
+
+* **`r round(calcul("Environ une fois par semaine", 1) + calcul("Plusieurs fois par semaine", 1)/nrow(data)*100, 1)`%** pour 1 soirée par semaine
+* **`r round(calcul("Environ une fois par semaine", 2) + calcul("Plusieurs fois par semaine", 2)/nrow(data)*100, 1)`%** pour 2 soirées par semaine 
+* **`r round(calcul("Environ une fois par semaine", 3) + calcul("Plusieurs fois par semaine", 3)/nrow(data)*100, 1)`%** pour 3 soirées par semaine. 
+
+On observe donc la même hypothèse qu'avec le graphique. Nous allons réaliser un test de χ2 pour valider ou non cette hypothèse.
+
+
+```{r test5, echo = FALSE, message = FALSE, warning=FALSE, results = 'hide'}
+chi2.test(data$`Nombre de soirées par semaine en moyenne`, data$`Rythme de consommation d'alcool`)
+```
+
+
+Soit un seuil de significativité de **5%**. Avec les résultats du test du χ2, on a une p-value < 0,05 donc on rejette l'hypothèse nulle selon laquelle le rythme de consommation d'alcool et le nombre de soirées par semaine sont des variables indépendantes. 
+
+Ainsi on peut conclure que le rythme de consommation d'alcool et le nombre de soirées sont liées, et avec nos représentations on peut dire que plus le rythme de consommation d'alcool augmente, plus le nombre de soirées augmente.
