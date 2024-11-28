@@ -130,7 +130,7 @@ Column {data-width=1000}
 ```{r}
 valueBox(
   value = tags$span("32.908.657"),  
-  caption = tags$span("Votants"),  
+  caption = tags$span("Votants TOUR 1"),  
   icon = "fa-envelope", 
   color = "#4040fb" 
 )
@@ -201,7 +201,7 @@ Column {data-width=1000}
 ```{r}
 valueBox(
   value = tags$span("16.424.052", style = "color: black;"),  
-  caption = tags$span("Abstentions", style = "color: black;"),  
+  caption = tags$span("Abstentions TOUR 2", style = "color: black;"),  
   icon = "fa-times", 
   color = "#fa5252"  
 )
@@ -374,7 +374,7 @@ Column {data-width=1000}
 ```{r}
 valueBox(
   value = tags$span("28.867.759"),  
-  caption = tags$span("Votants"),  
+  caption = tags$span("Votants TOUR 2"),  
   icon = "fa-envelope", 
   color = "#4040fb"
 )
@@ -441,7 +441,7 @@ Column {data-width=1000}
 ```{r}
 valueBox(
   value = tags$span("14.460.749", style = "color: black;"),  
-  caption = tags$span("Abstentions", style = "color: black;"),  
+  caption = tags$span("Abstentions TOUR 2", style = "color: black;"),  
   icon = "fa-times",
   color = "#fa5252"  
 )
