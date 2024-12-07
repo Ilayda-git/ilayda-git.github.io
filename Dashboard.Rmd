@@ -201,7 +201,7 @@ Column {data-width=1000}
 ```{r}
 valueBox(
   value = tags$span("16.424.052", style = "color: black;"),  
-  caption = tags$span("Abstentions TOUR 2", style = "color: black;"),  
+  caption = tags$span("Abstentions TOUR 1", style = "color: black;"),  
   icon = "fa-times", 
   color = "#fa5252"  
 )
@@ -1024,150 +1024,75 @@ p
 
 
 
-# Cartographie{data-navmenu=Données}
+# Base de Données Utilisées
 
-
-
-### France Tour 1   
+### **Cartographie** 
 
 ```{r}
-résultats_régions_1 <- résultats_régions[,c(2:7)]
-row.names(résultats_régions_1) <- résultats_régions_1$Libellé.région
-résultats_régions_1 <- résultats_régions_1[,-1]
+election_data <- data.frame(
+  Election = c("France Tour 1", "France Tour 2", "Indre-et-Loire Tour 1", "Indre-et-Loire Tour 2"),
+  Type_de_donnees = c("Résultats par régions", "Résultats par régions", "Résultats par département", "Résultats par département"),
+  Source_fichier_resultats = c(
+    "https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-1er-tour/",
+    "https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-2nd-tour/",
+    "https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-1er-tour/",
+    "https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-2nd-tour/"
+  ),
+  Source_fichier_JSON = c(
+    "https://www.data.gouv.fr/fr/datasets/contours-des-communes-de-france-simplifie-avec-regions-et-departement-doutre-mer-rapproches/",
+    "https://www.data.gouv.fr/fr/datasets/contours-des-communes-de-france-simplifie-avec-regions-et-departement-doutre-mer-rapproches/",
+    "https://github.com/gregoiredavid/france-geojson/tree/master/regions/centre-val-de-loire",
+    "https://github.com/gregoiredavid/france-geojson/tree/master/regions/centre-val-de-loire"
+  )
+)
 
-colnames(résultats_régions_1) <- c("Inscrits", "Votants",
-                                   "% Votants", "Abstentions", "% Abstentions")
-
-datatable(
-  résultats_régions_1,
-  options = list(
-    paging = FALSE,           
-    scrollX = TRUE,           
-    scrollY = '300px',        
-    ordering = TRUE,         
-    columnDefs = list(list(className = 'dt-center', targets = '_all'),
-                      list(width = '150px', targets = 0)),
-    class = 'compact stripe hover cell-border',
-    style = "bootstrap"))
-```
-
-
-### Indre-et-Loire Tour 1 
-
-```{r}
-CVL <- CVL[,c(1:7)]
-row.names(CVL) <- CVL$Code.département
-CVL <- CVL[,-1]
-
-colnames(CVL) <- c("Département","Inscrits", "Votants",
-                                   "% Votants", "Abstentions", "% Abstentions")
-
-datatable(CVL,
-  options = list(
-    paging = FALSE,           
-    scrollX = TRUE,           
-    scrollY = '300px',        
-    ordering = TRUE,        
-    columnDefs = list(list(className = 'dt-center', targets = '_all'),
-                      list(width = '150px', targets = 0)),
-    class = 'compact stripe hover cell-border',
-    style = "bootstrap"))
-```
-
-
-## Données {.sidebar}
-
-
-**Dashboard réalisé par :**
-
-- [Hasfa Mousalli](http://www.linkedin.com/in/hafsa-mousalli)
-- [Imane Lemkhayer](http://www.linkedin.com/in/imane-lemkhayer)
-- [Ilayda Yilmaz](http://www.linkedin.com/in/ilayda-yilmaz-576ba432a)
-
-**France Tour 1 **
-
-Afin de réaliser la cartographie, nous avons besoin d'une base de données comprenant les résultats par [régions](https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-1er-tour/) ainsi qu'un [fichier JSON](https://www.data.gouv.fr/fr/datasets/contours-des-communes-de-france-simplifie-avec-regions-et-departement-doutre-mer-rapproches/).
-
-**France Tour 2 **
-
-Pour le second tour, nous avons utilisé une autre base de données résultats par [régions 2](https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-2nd-tour/) tout en conservant le même fichier JSON
-
-**Indre-et-Loire Tour 1**
-
-Pour réaliser la cartographie de la région Centre-Val de Loire, nous avons utilisé une base de données contenant les résultats par [département](https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-1er-tour/) ainsi qu'un [fichier JSON](https://github.com/gregoiredavid/france-geojson/tree/master/regions/centre-val-de-loire) pour obtenir les contours géographiques de la région.
-
-**Indre-et-Loire Tour 2**
-
-Pour le second tour, nous avons utilisé une autre base de données résultats par [département 2](https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-2nd-tour/) tout en conservant le même fichier JSON
-
-
-
-# Diagramme Circulaire {data-navmenu="Données"}
-
-### France Tour 1 
-```{r}
-
-colnames(resultats_groupes) <- c("Catégorie","Voix Total", "%",
-                                   "texte")
-kable(resultats_groupes,
-  options = list(
-    paging = FALSE,           
-    scrollX = TRUE,           
-    scrollY = '300px',        
-    ordering = TRUE,        
-    columnDefs = list(list(className = 'dt-center', targets = '_all'),
-                      list(width = '150px', targets = 0)),
-    class = 'compact stripe hover cell-border',
-    style = "bootstrap"))
-```
-
-
-### Indre-et-Loire Tour 1
-```{r}
-colnames(resultats_groupesL) <- c("Catégorie","Voix Total", "%",
-                                   "texte")
-kable(resultats_groupesL,
-  options = list(
-    paging = FALSE,           
-    scrollX = TRUE,           
-    scrollY = '300px',        
-    ordering = TRUE,        
-    columnDefs = list(list(className = 'dt-center', targets = '_all'),
-                      list(width = '150px', targets = 0)),
-    class = 'compact stripe hover cell-border',
-    style = "bootstrap"))
+# Utiliser knitr::kable pour afficher proprement le tableau
+kable(election_data, format = "markdown")
 ```
 
 
 
-## Données {.sidebar}
 
 
-**Dashboard réalisé par :**
+### **Diagramme Circulaire**  
 
-- [Hasfa Mousalli](http://www.linkedin.com/in/hafsa-mousalli)
-- [Imane Lemkhayer](http://www.linkedin.com/in/imane-lemkhayer)
-- [Ilayda Yilmaz](http://www.linkedin.com/in/ilayda-yilmaz-576ba432a)
+```{r}
 
-**France Tour 1**
+election_data <- data.frame(
+  Election = c("France Tour 1", "France Tour 2", "Indre-et-Loire Tour 1", "Indre-et-Loire Tour 2"),
+  Type_de_donnees = c("Résultats pour toute la France", "Résultats pour toute la France", "Résultats par département", "Résultats par département"),
+  Source_fichier_resultats = c(
+    "https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-1er-tour/",
+    "https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-2nd-tour/",
+    "https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-1er-tour/",
+    "https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-2nd-tour/"
+  )
+)
 
-Pour réaliser le diagramme circulaire, nous avons eu besoin d'une base de données contenant les résultats pour toute [la France](https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-1er-tour/). Nous avons ensuite dû en extraire les informations nécessaires pour concevoir le diagramme.
-
-**France Tour 2**
-
-Pour le second tour, nous avons utilisé une autre base de données les résultats pour toute [la France](https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-2nd-tour/).
-
-
-**Indre-et-Loire Tour 1**
-
-Comme pour les résultats de toute la France, nous avons utilisé une base de données contenant les résultats par [département](https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-1er-tour/). Nous avons ensuite extrait les informations nécessaires pour réaliser le diagramme.
-
-**Indre-et-Loire Tour 2**
-
-Pour le second tour, nous avons utilisé une autre base de données les résultats par [département](https://www.data.gouv.fr/fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-2nd-tour/).
+# Utiliser knitr::kable pour afficher proprement le tableau
+kable(election_data, format = "markdown")
+```
 
 
 
+### **Dashboard réalisé par :**
+
+```{r}
+# Créer un tableau avec les créateurs du dashboard
+creators_data <- data.frame(
+  Nom = c("Hasfa Mousalli", "Imane Lemkhayer", "Ilayda Yilmaz"),
+  Lien_LinkedIn = c(
+    "[Hasfa Mousalli](http://www.linkedin.com/in/hafsa-mousalli)",
+    "[Imane Lemkhayer](http://www.linkedin.com/in/imane-lemkhayer)",
+    "[Ilayda Yilmaz](http://www.linkedin.com/in/ilayda-yilmaz-576ba432a)"
+  )
+)
+
+# Afficher le tableau des créateurs avec knitr::kable
+library(knitr)
+kable(creators_data, format = "markdown", col.names = c("Nom", "Profil LinkedIn"))
+
+```
 
 
 
