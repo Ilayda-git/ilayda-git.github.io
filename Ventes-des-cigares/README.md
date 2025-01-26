@@ -1,5 +1,4 @@
-Dans ce projet, nous cherchons à répondre à la question de recherche suivante : 
-
+## Micro-économétriques
 - **Quels sont les déterminants des ventes de cigares et comment les caractéristiques économiques, démographiques et les variations temporelles influencent-elles ces ventes ?**
 
 *L’objectif principal est de comprendre les principaux facteurs influençant les ventes de cigares et d'évaluer l'importance relative de chacun. 
