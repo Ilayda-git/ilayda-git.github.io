@@ -1,0 +1,1774 @@
+---
+title: "Élections législatives 2024 - Tour 1"
+header-includes:
+- \usepackage[french]{babel}
+output: 
+  pdf_document :
+    number_section: yes
+    highlight: espresso
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+author: "MOUSALLI Hafsa - LEMKHAYER Imane - YILMAZ Ilayda "
+editor_options: 
+  chunk_output_type: console
+always_allow_html: true
+---
+
+![](ElectionLegislative-24.png){width=100%}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,
+                      warning = F,
+                      message = F,
+                      error = F,
+                      cache = T,
+                      fig.height = 10,
+                      fig.width = 10,
+                      fig.align = "center")
+
+```
+
+```{r, packages}
+library(readxl)
+library(tidyverse)
+library(FactoMineR)
+library(factoextra)
+library(kableExtra)
+library(knitr)
+library(ggplot2)
+library(cowplot)
+library(ggpubr)
+library(ggcorrplot)
+library(skimr)
+library(modelsummary)
+library(stargazer)
+library(ggrepel)
+library(ggpubr)
+library(gridExtra)
+library(explor)
+library(htmltools)
+
+choix_pal <- "futurama"
+col_ind <- "#008EA0FF" #"#357EBDFF"
+col_var <- "#C71000FF"#D43F3AFF"
+col_bar <- "#8A419888"#5CB85CFF"
+logodark <- "#5A9599EE"
+corail <- "#FF6348FF"
+```
+
+\pagebreak
+\tableofcontents
+
+\pagebreak
+
+```{r}
+df <- read.csv("resultat_combiné_région_1.csv",
+                 sep = ";",
+                 header = TRUE,
+                 stringsAsFactors = FALSE, 
+                 fill = TRUE
+                 )
+```
+
+# <span style="color: #127434;">Introduction</span> 
+
+## Mise en contexte
+
+Les élections législatives de 2024 marquent un tournant majeur dans la vie politique française, avec un paysage électoral fragmenté et des enjeux régionaux qui prennent une importance cruciale. Chaque région reflète des spécificités locales tout en contribuant aux grandes tendances nationales. Dans ce contexte, analyser les résultats du premier tour est indispensable pour comprendre les dynamiques politiques et les tendances qui se dessinent à travers le pays.
+
+Dans ce cadre, notre étude vise à :
+
+- Identifier des regroupements régionaux et politiques cohérents grâce à des méthodes statistiques comme l’ACP (Analyse en Composantes Principales), l’ACM (Analyse en Composantes Multiples) et le clustering.
+
+- Explorer les similarités et différences entre les régions en termes de tendances électorales.
+
+## Problématique 
+
+Dans un contexte politique marqué par des enjeux multiples et des dynamiques régionales qui se renforcent, comment peut-on, à partir des données électorales identifier des tendances, des regroupements et des profils électoraux spécifiques ? 
+
+Plus précisément, quelles méthodes permettent de dégager des regroupements cohérents et comment mieux comprendre les comportements électoraux dans un contexte aussi diversifié au premier tour des élections législatives 2024 ?
+
+## Présentation des bases de données
+
+### Base de données initiale
+
+```{r}
+data <- read.csv("resultats-definitifs-par-regions.csv",
+                 sep = ";",
+                 header = TRUE,
+                 stringsAsFactors = FALSE, 
+                 fill = TRUE
+                 )
+initiale <- data[1:10, 17:24] 
+colnames(initiale) <- c("Nuance 1", "Voix 1","Voix1 ins %", "Voix1 exp %","Nuance 2", "Voix 2","Voix2 ins %", "Voix2 exp %")
+initiale |> kable(caption = "Extrait de la base initaile")
+```
+Nous avons extrait notre base de données depuis le site OpenDataUniversity. Cependant, sa structure s'est avérée trop complexe, rendant l'interprétation difficile. Chaque région comportait de nombreuses colonnes correspondant à différentes nuances politiques, allant de la nuance 1 à la nuance 18. De plus, les pourcentages de voix étaient détaillés pour chaque nuance, à la fois en fonction des inscrits et des votes exprimés. 
+
+Ce niveau de détail excessif a conduit à un grand nombre de colonnes, compliquant l'analyse des données et leur compréhension.
+
+Il y a 18 observations et 88 variables. Chaque observation correspond à une région et contient des informations détaillées, telles que :
+
+- les résultats électoraux pour différentes nuances politiques (de nuance 1 à nuance 18).
+- les comportements éléctoraux (participation active, abstention, vote blanc/nul).
+
+### Base de données transformée
+
+```{r}
+df <- read.csv("resultat_combiné_région_1.csv",
+                 sep = ";",
+                 header = TRUE,
+                 stringsAsFactors = FALSE, 
+                 fill = TRUE
+                 )
+
+df[1:10, c(16:18,22:24)] |> kable(caption = "Extrait de la base transformée")
+
+```
+
+L'objectif principal de la transformation de la base de données était de simplifier et d’homogénéiser les résultats des élections pour les rendre plus accessibles. 
+On a donc regroupé les observations des nuances individuelles en 6 grandes familles politiques : 
+
+- Union gauche : SOC, DVG, ECO, UG
+- Extrême droite : RN, REC, EXD
+- Extrême gauche : EXG
+- Union droite : LR, DVC, DVD
+- Parti présidentielle : ENS HOR UDI
+- Indépendants : REG, DIV.
+
+Nous avons également regroupé les voix afin d’obtenir des « totaux de voix » pour chaque parti, ainsi que leurs pourcentages correspondants, calculés à la fois par rapport aux inscrits et aux votes exprimés.
+
+Le regroupement permet d'avoir une réduction du nombre de colonnes (18 observations et 39 variables), et ainsi d'avoir une vue d'ensemble sur les grandes tendances politiques dans chaque région, et de pouvoir ainsi comparer les résultats de manière plus optimale. Les données sont donc plus lisibles et rendent les analyses statistiques plus exploitables par la suite.
+
+\newpage
+
+# <span style="color: #127434;">Analyse en Composantes Principales</span>
+
+L'Analyse par Composantes Principales (ACP) est une méthode statistique utilisée pour réduire la complexité et la multidimensionnalité des données, tout en conservant un maximum d'information essentielle.
+
+Dans notre étude, l'ACP nous a permis de synthétiser et d'interpréter les données afin de mettre en avant les principales tendances régionales.
+
+À travers cette analyse, nous chercherons à répondre à la problématique suivante : 
+
+- **Quelles similitudes et différences observe-t-on entre les régions en termes de résultats électoraux ?**
+
+Pour y répondre, nous commencerons par examiner la matrice de corrélation afin de mieux comprendre les relations entre les variables.
+
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+#renommer certaines variabes
+names(df) <- gsub("^Pourcentage\\.", "%.", names(df))
+names(df) <- gsub("^X\\.\\.", "%.", names(df))
+
+```
+
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+
+subset_df <- df[, 3:15]
+
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+
+for (col in names(subset_df)) {
+  
+
+if (is.character(subset_df[[col]])) {
+    
+    cat("Colonne :", col, "\n")
+    print(head(subset_df[[col]]))
+    
+    cleaned_values <- gsub(" %|%", "", subset_df[[col]])  
+    cleaned_values <- gsub(",", ".", cleaned_values)  
+    
+    cat("Valeurs après suppression du '%', remplacement de ',' par '.':\n")
+    print(head(cleaned_values))
+    
+   
+    numeric_values <- as.numeric(cleaned_values)
+    
+ 
+    cat("Valeurs après conversion en numérique :\n")
+    print(head(numeric_values))
+
+    subset_df[[col]] <- numeric_values
+  }
+}
+df[, 3:15] <- subset_df
+str(df)
+
+```
+
+
+## Matrice des corrélations
+
+```{r , fig.height=5, fig.width=6, fig.cap="Matrice des Corrélations"}
+#On prends que les variables en % pour la matrice des corrélations
+df1 <- df[, c(4, 6, 8,9, 11,12, 14,15)]
+
+cor_matrix <- cor(df1, use = "complete.obs")
+library(corrplot)
+corrplot(cor_matrix, method = "circle", type = "upper", tl.cex = 0.8, diag = FALSE, addCoef.col = "black")
+
+```
+
+\newpage
+
+Nous commençons par extraire les colonnes représentant les variables exprimées en pourcentage, afin de nous concentrer uniquement sur ces données et éviter les redondances. 
+
+Le graphique obtenu est une matrice de corrélation qui met en évidence **le lien entre nos variables quantitatives**. La taille et la couleur des cercles permettent d'illustrer visuellement ces corrélations. Un cercle plus grand indique une corrélation plus forte, qu'elle soit positive ou négative. La couleur des cercles elle est significative, le rouge représente une corrélation négative, tandis que le bleu illustre une corrélation positive.
+
+On observe une **corrélation négative entre les variables %Votants et %Abstentions**, ce qui est tout à fait logique, plus le taux de votants augmente, plus le taux d'abstention diminue. En d'autres termes, lorsque davantage d'électeurs décident de voter, le nombre d'abstentionnistes tend à diminuer. 
+
+On constate également une **corrélation positive entre %Votants et %Exprimés.Inscrits**. Cela signifie que lorsque le nombre de votants augmente, la proportion de votes exprimés augmente aussi. En effet, les électeurs qui participent au scrutin ont plus de chances de voter de manière valide, sans rendre de votes blancs ou nuls et par conséquent voter pour un candidat.
+
+## Etude des inerties
+### Tableau des valeurs propres
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE }
+df2 <- df[, c(2:15)] # toute les variables quanti
+quanti_supp <- c(1:2,4,6, 9, 12)  
+row.names(df2) <- df$Libellé.région
+resacp <- PCA(df2, quanti.sup = quanti_supp, graph = FALSE)
+
+
+```
+
+Nous avons ensuite réalisé l'ACP en utilisant l'ensemble des variables quantitatives et nous avons ajouté les variables non exprimées en pourcentage en tant que variables supplémentaires.
+
+
+Par la suite, nous avons  effectué un tableau et un graphique des inerties afin de visualiser la part de la variabilité expliquée par chaque composante.
+\ 
+```{r , results='asis', fig.align='center'}
+tab_acp<- resacp$eig |> t() |>  round(2)
+
+row.names(tab_acp) <- c("Inerties", "Part d'inertie", "Part cumulée")
+colnames(tab_acp) <- paste0("F", 1:ncol(tab_acp))
+
+tab_acp |>  
+  kable(caption = "Tableau des valeurs propres", align = "c") |>   
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),  
+    full_width = FALSE, 
+    position = "center")
+```
+
+
+Nous avons choisi de **conserver uniquement les deux premiers axes**, car le troisième présente une inertie de `r resacp$eig[3,1]` % ce qui est inférieur à 1.
+
+- L'axe 1 explique **`r resacp$eig[1,2] |> round(2)`%** de la variance totale, capturant ainsi la majeure partie de la variabilité des données. 
+- L'axe 2 explique **`r resacp$eig[2,2] |> round(2)`%** de la variance, apportant une information complémentaire. 
+
+Ensemble, ces deux axes expliquent **`r tab_acp[3,2]`%** de la variance totale. Cela montre que presque toute l'information initiale des données est conservée dans ces deux premières dimensions, ce qui justifie le fait de ne pas prendre d'axes supplémentaires.
+ 
+
+\newpage
+### Représentation graphique des valeurs propres
+\ 
+```{r , fig.height=3.5, fig.width=4}
+fviz_eig(resacp, addlabels = T, ylim=c(0,80),ncp=5) + 
+  ggtitle("Représentation des parts des inerties") + 
+  xlab("Axes") + ylab("Part d'intertie")+ 
+  geom_hline(aes(yintercept=100/9), color="lightblue", linewidth=1)
+
+
+```
+
+Le graphique confirme nos propos précédents et montre qu'il est pertinent de ne conserver que les deux premiers axes.
+
+## Étude des variables 
+### Etude du nuage des variables
+
+```{r fig.height=5, fig.align='center', fig.width=4.5}
+fviz_pca_var(resacp, col.var = "contrib")
+```
+
+\newpage
+
+Les variables comme **% Votants, % Exprimés votants, et % Exprimés inscrits contribuent négativement à l'axe 1**. Ce côté de l'axe représente les zones où une proportion élevée d'électeurs s'engagent activement dans le processus électoral en votant pour un candidat.
+
+À l'inverse, les variables **% Blancs votants, % Nuls votants, et % Abstentions contribuent positivement à l'axe 1**, mettant en avant des zones avec une forte abstention et un taux élevé de votes blancs ou nuls, ce qui reflète un désengagement des électeurs. 
+
+L'axe 1 oppose les **zones avec une forte participation électorale** marquée par des taux élevés de votants et d'exprimés **à des zones où la participation est plus faible**, marquée par une forte abstention et des votes blancs et nuls.
+
+**% Blancs inscrits contribue positivement à l'axe 2**, mettant en avant des zones où les électeurs choisissent de ne pas exprimer un choix clair, mais préfèrent tout de même aller voter.
+
+**% Abstentions et % Exprimés votants contribuent négativement à cet axe**.
+
+L'axe 2 montre une opposition entre une **participation électorale engagée** où les électeurs choisissent de voter pour un candidat **à une participation passive ou neutre** marquée par de l'abstention et des votes blancs .
+
+### Etude des contributions 
+### Axe 1 
+
+```{r , fig.height=4, fig.width=5, include=FALSE}
+fviz_contrib(resacp, choice = 'var', axes = 1)+ggtitle("Contributions des variables à l'axe 1")
+```
+
+```{r , fig.height=4.25, fig.width=4.5, include=FALSE}
+
+T1 <- resacp$var$contrib[, 1] |> sort(decreasing = TRUE)
+T2 <- cumsum(T1)
+
+Table <- cbind(T1, T2)
+colnames(Table) <- c("Contrib", "Contrib Cum")
+
+Table |>
+  round(2) |> kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+
+```
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des variables à l'axe 1 "}
+knitr::include_graphics("acp_var_1.png")
+knitr::include_graphics("acp_tab_1.png")
+
+```
+
+Les variables qui contribuent le plus à l'axe 1 sont: 
+
+- **%Nuls.votants**
+- **%Exprimés.votants**
+- **%Exprimés.inscrits**
+- **%Votants**
+
+Ces quatres variables-ci contribuent de **`r Table[4,2] |> round(2)`**% à la construction de l'axe, ce qui montrent leur importance prédominante dans la construction de l'axe 1.
+
+\newpage
+### Axe 2 
+
+```{r , fig.height=4, fig.width=5, include=FALSE}
+fviz_contrib(resacp, choice = 'var', axes = 2)+ggtitle("Contributions des variables à l'axe 2")
+```
+
+```{r , fig.height=4.25, fig.width=4.5, include=FALSE}
+T1 <- resacp$var$contrib[, 2] |> sort(decreasing = TRUE)
+T2 <- cumsum(T1)
+
+Table <- cbind(T1, T2)
+colnames(Table) <- c("Contrib", "Contrib Cum")
+
+
+Table |>
+  round(2) |> kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+```
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des variables à l'axe 2 "}
+knitr::include_graphics("acp_var_2.png")
+knitr::include_graphics("acp_tab_2.png")
+
+```
+
+Les variables qui contribuent le plus dans l'axe 2 sont: 
+
+- **%blancs.inscrits**
+- **%nuls.inscrits**
+- **%blancs.votants**
+
+
+On voit que la variable **% Blancs inscrits a une contribution relativement élevé**, ce qui met en avant son rôle prédominant dans la construction de ce second axe.
+
+
+## Étude des individus
+### Nuage des individus
+
+```{r, results='asis', fig.width=8, fig.height=4.25, fig.cap="Nuage des individus pour l'axe 1 et l'axe 2 "}
+fviz_pca_ind(resacp, select.ind = list(cos2=0.5),
+             col.ind = "contrib",
+             axes = c(1,2), 
+             ylim = c(-3.25, 2.75), 
+             title = " ")
+
+```
+
+Les régions comme La Réunion, Mayotte, la Martinique et la Guadeloupe contribuent fortement et positivement à l'axe 1. Ces régions se différencient de part leurs spécificités électorales. En effet, elles sont principalement caractérisées par des taux plus élevés de votes nuls.
+
+La Bretagne et l'Ile de France contribuent elles de manière négative à l'axe 1 mettant en avant à l'opposé un comportement électorale marquée par une forte participation et des votes exprimés également plus élevés.
+
+Ainsi, l'axe 1 oppose **les régions d'outres mers**  qui se démarquent par une plus faible participation électorale **aux régions métropolitaines**.
+
+On remarque aussi que les régions métropolitaines sont situées près de l'origine montrant qu'elles présentent des comportements électoraux plus homogènes que les régions d'outres mers qui elles ont  des caractéristiques distinctes.
+
+La Guyane est principalement associé à la variable %Abstention, mettant en avant le fait que les électeurs guyanais votent très peu.
+
+Mayotte, la Réunion, l'Occitanie, La Nouvelle Aquitaine contribuent positivement à l'axe 2 et sont associées à des comportements de votes blancs.
+
+L'axe 2 montre une opposition entre une **participation électorale engagée** où les électeurs choisissent de voter pour un candidat **à une participation passive ou neutre** marquée par de l'abstention et des votes blancs,
+
+Ainsi, l'axe 2 oppose les **régions avec une participation électorale engagée** aux **régions qui ont une participation passive ou neutre**.
+
+### Étude des contributions des individus 
+
+```{r , results='axis', fig.height=8, fig.width=8, fig.cap="Tableau des individus pour l'axe 1", include=FALSE}
+fviz_contrib(resacp, choice = "ind", axes = 1) + ggtitle("Contributions des régions à l'axe 1")
+```
+
+```{r , fig.height=4.25, fig.width=4.5, include=FALSE}
+T1 <- resacp$ind$contrib[, 1] |> sort(decreasing = TRUE)
+T2 <- cumsum(T1)
+
+Table <- cbind(T1, T2)
+colnames(Table) <- c("Contribution", "Contribution Cumulée")
+
+
+Table |>
+  round(2) |> kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+```
+
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des régions à l'axe 1"}
+knitr::include_graphics("acp_ind_1.png")
+knitr::include_graphics("acp_tab_3.png")
+
+```
+
+
+On retrouve sous forme de graphique les régions qui contribuent le plus à l'axe 1:
+
+- Mayotte
+- Guadeloupe
+- Martinique
+- Reunion
+- Guyane
+
+Les régions qui contribuent le plus à l'axe 1 sont principalement les régions d'outre-mer, notamment Mayotte, la Guadeloupe, la Martinique, La Réunion. Toutefois, la contribution de la Guyane est moins élevée que celle des autres régions d'outre-mer. En effet, la Guyane contribue à hauteur de **`r Table[5,1] |> round(2)`**% tandis que la Martinique atteint **`r Table[3,1] |> round(2)`%** et Mayotte va jusqu'à **`r Table[1,1] |> round(2)`%**.
+
+
+
+```{r , fig.height=4.25, fig.width=4.5, include=FALSE}
+fviz_contrib(resacp, choice = "ind", axes = 2) + ggtitle("Contributions des régions à l'axe 2")
+```
+
+
+```{r , fig.height=4.25, fig.width=4.5, include=FALSE}
+
+T1 <- resacp$ind$contrib[, 2] |> sort(decreasing = TRUE)
+T2 <- cumsum(T1)
+Table <- cbind(T1, T2)
+colnames(Table) <- c("Contribution", "Contribution Cumulée")
+
+
+Table |>
+  round(2) |> kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+```
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des régions à l'axe 2"}
+knitr::include_graphics("acp_ind_2.png")
+knitr::include_graphics("acp_tab_4.png")
+
+```
+
+
+On voit que les régions qui contribuent le plus à l'axe 2 sont les régions hors France métropolitaine, à savoir:
+
+- Guyane
+- Corse
+- La Réunion
+- Mayotte
+- Occitanie
+
+On observe que la Guyane contribue de manière significative à cet axe, soit **`r Table[1,1] |> round(2)`%**
+
+
+
+### Qualité des individus
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+resacp$ind$cos2[,1:2] |> rowSums() |> round(3) |> sort(decreasing = T)  |>  kable() 
+```
+
+
+Les valeurs relativement élevées pour toutes les régions, comprises entre **0.808** et **0.999**, indiquent une bonne qualité de représentation. Cela confirme que les deux premiers axes capturent une grande partie de la variance des données et sont suffisants pour refléter les principales caractéristiques des régions.
+
+En conséquence, le graphique des individus offre une représentation globalement fidèle de la distribution des régions dans l’espace des données.
+
+
+## Conclusion
+
+En conclusion, l'analyse révèle des différences marquées entre les régions métropolitaines et les régions d'outre-mer en termes de comportements électoraux. Les régions métropolitaines, comme l'Île-de-France et la Bretagne se caractérisent par une participation électorale plus forte, avec moins de votes nuls ou blancs. À l'inverse, les régions d'outre-mer, telles que la Guadeloupe, la Martinique ou la Réunion, montrent des taux d'abstention élevés, souvent accompagnés d'une proportion importante de votes blancs ou nuls. Ces particularités reflètent des contextes sociaux, historiques et politiques propres à chaque territoire.
+
+
+\newpage
+
+# <span style="color: #127434;">Analyse en Composantes Multiples</span>
+
+Nous nous sommes intéressés à la question suivante : 
+
+- **Comment les régions se différencient-elles par rapport à leur soutien aux partis politiques dans un contexte de diversité politique ?**
+
+Pour répondre à cette question, nous utilisons une analyse en composantes multiples (ACM), permettant de mettre en lumière les relations entre les résultats électoraux par parti (en pourcentage de voix) et les régions. Cette méthode permet d’identifier les axes structurants de la diversité politique et de comprendre comment les régions se positionnent dans cet espace politique.
+
+```{r}
+table_voix <- df[, c(2, grep("^Voix\\.\\d+$", colnames(df)))]
+voix_cols <- grep("^Voix\\.\\d+$", colnames(table_voix))  
+table_voix[, voix_cols] <- table_voix[, voix_cols] / table_voix[, 1] * 100
+
+
+voix_cols <- grep("^Voix\\.\\d+$", colnames(table_voix))
+table_voix[is.na(table_voix)] <- 0
+
+
+table_voix[, voix_cols] <- lapply(table_voix[, voix_cols], function(x) {
+  cut(x,
+      breaks = c(-Inf, 10, 20, Inf),       
+      labels = c("Faible", "Moyen", "Fort"),  
+      right = FALSE)
+  })
+
+
+rownames(table_voix) <- data$Libellé.région
+```
+
+
+```{r}
+colnames(table_voix) <- c("inscrit", "Voix_ED", "Voix_UG", "Voix_EG", "Voix_UD", "Voix_P", "Voix_IND")
+
+
+resacm <- MCA(table_voix, quanti.sup = 1 ,graph=F)
+```
+
+## Études des inerties 
+ 
+ \ 
+```{r, fig.height=4.25, fig.width=4.5}
+fviz_screeplot(resacm,addlabels=TRUE)+
+  ggtitle("Représentation des parts des inerties") + ylab("Part de la variance")
+```
+
+```{r, results='asis', fig.align='center'}
+tab<-resacm$eig |> 
+  round(2) |>  t() 
+
+rownames(tab)<-c("Inertie","Part d'inertie","Cumul")
+
+tab |> 
+  round(2)|> kable(caption = "Tableau des valeurs propres", align = "c") |> 
+  kable_styling(full_width = FALSE,
+                position = "center",
+                bootstrap_options = c("striped"))
+
+```
+
+
+Nous remarquons que la variance totale est très dispersée, chaque axe capte peu d'informations. Avec **`r resacm$eig[2,3] |>round(2)`%** d’inertie sur les deux premiers axes, nous disposons d’une base assez solide pour analyser et interpréter les données principales.
+
+\newpage
+## Étude de l'axe 1 
+
+```{r, include=FALSE}
+nuagevar <- explor::prepare_results(resacm)
+graph <- tagList(
+  tags$h2(
+    "Nuage des Variables axe 1 et 2", 
+    style = "text-align: center; font-size: 20px; margin-bottom: 20px;"),
+  explor::MCA_var_plot(
+    nuagevar, xax = 1, yax = 2,
+    var_lab_min_contrib = 0, col_var = "Variable",
+    symbol_var = "Type", 
+    size_var = NULL, size_range = c(10, 300), labels_size = 10, point_size = 56,
+    transitions = TRUE, labels_positions = "auto", labels_prepend_var = FALSE
+  ))
+
+graph
+```
+
+```{r, include=FALSE}
+res <- explor::prepare_results(resacm)
+graph <- tagList(
+  tags$h2(
+      "Nuages des variables axe 1", 
+    style = "text-align: center; font-size: 20px; margin-bottom: 20px;"),
+  explor::MCA_var_plot(
+    res, xax = 1, yax = 1, var_sup = T, 
+    var_sup_choice = NULL,
+    var_lab_min_contrib = 0, col_var = "Variable", symbol_var = "Type", 
+    size_var = NULL, size_range = c(10, 300), labels_size = 10, 
+    point_size = 56, transitions = F,
+    labels_positions = "auto", labels_prepend_var = FALSE, 
+    xlim = c(-2, 2.5), ylim = c(-2, 2)
+  ))
+
+graph
+```
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Nuages des variables pour l'axe 1 et pour l'axe 1,2"}
+knitr::include_graphics("Nuage_var_1.png")
+knitr::include_graphics("Nuage_var_1_2.png")
+
+```
+
+Sur le graphique de droite nous pouvons voir que les modalités qui contribuent le plus à l'axe 1 dans les positives sont :  
+
+- Voix ED Faible 
+- Voix IND Fort et Moyen 
+- Voix P Faible 
+- Voix UG Faible 
+
+
+
+
+### Contributions des modalités 
+\ 
+```{r, fig.height=4, fig.width=5, include=FALSE}
+fviz_contrib(resacm,choice = "var",axes = 1,)+ggtitle("Contributions des modalites à l'axe 1")
+
+T1 <- resacm$var$contrib[, 1] |> sort(decreasing = TRUE)
+T2 <- cumsum(T1)
+
+Table <- cbind(T1, T2)
+colnames(Table) <- c("Contrib", "Contrib Cum")
+```
+
+
+```{r, include=FALSE}
+# Afficher uniquement les 10 premières lignes
+Table[1:10, ] |>
+    round(2) |> 
+  kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+```
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des modalités à l'axe 1 "}
+knitr::include_graphics("Mod_var_1.png")
+knitr::include_graphics("Tab_var_1.png")
+
+```
+
+Ce graphique confirme ce que nous avons vu sur le graphique précédent.
+Ainsi, les trois premières modalités contribuent à environ **`r Table[3,2] |> round(2)`** % d'inertie dans l'axe 1.
+
+\newpage 
+
+### Contributions des individus 
+
+```{r, results='asis', fig.width=8, fig.height=3.5, fig.cap="Nuage des individus pour l'axe 1 et 2"}
+fviz_mca_ind(resacm, 
+             col.ind = "contrib",
+             axes = c(1,2),
+             alpha.ind = 0.7,
+             ylim = c(-1, 2), 
+             title = " ")
+
+```
+
+Nous remarquons que les Individus qui contribuent le plus à l'axe 1 sont les régions **d'Outre-Mer** et **la Corse**. Nous allons habiller les individus (régions) avec les modalités qui contribuent le plus, à savoir **Voix_UG** et **Voix_ED**, afin de mieux visualiser les modalités et leurs relations.
+
+```{r, include=FALSE}
+res <- explor::prepare_results(resacm)
+explor::MCA_ind_plot(res, xax = 1, yax = 2, ind_sup = FALSE, lab_var = NULL,
+    ind_lab_min_contrib = 0, col_var = "Voix_UG", labels_size = 9, point_opacity = 0.5,
+    opacity_var = NULL, point_size = 64, ellipses = TRUE, transitions = TRUE,
+    labels_positions = NULL, xlim = c(-2, 2), ylim = c(-2, 2))
+```
+
+```{r, include=FALSE}
+res <- explor::prepare_results(resacm)
+explor::MCA_ind_plot(res, xax = 1, yax = 2, ind_sup = FALSE, lab_var = NULL,
+    ind_lab_min_contrib = 0, col_var = "Voix_ED", labels_size = 9, point_opacity = 0.5,
+    opacity_var = NULL, point_size = 64, ellipses = TRUE, transitions = TRUE,
+    labels_positions = NULL, xlim = c(-2, 2), ylim = c(-2, 2))
+```
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Nuages des individus avec habillage pour Voix ED et Voix UG"}
+knitr::include_graphics("Nuage_ind_ED.png")
+knitr::include_graphics("Nuage_ind_UG.png")
+
+```
+
+- Les régions caractérisées par une **voix faible** de l'extrême droite se situent dans la partie positive de l'axe 1, tandis que celles caractérisées par des **voix moyennes** de l'extrême droite se trouvent dans la partie positive de l'axe 2.
+- Nous observons que les régions caractérisées par une **voix faible** de la partie Union de Gauche se situent principalement dans la partie positive de l'axe 1, tandis que celles caractérisées par une **voix forte** de la partie Union de Gauche se situent majoritairement dans la partie positive de l'axe 2
+
+\newpage
+\ 
+```{r, include=FALSE}
+fviz_contrib(resacm, choice="ind", axes = 1,title = "Contributions des Individus à l'axe 1")
+```
+
+```{r results='asis',fig.width=8, fig.height=5, include=FALSE}
+T1 <- resacm$ind$contrib[, 1] |> sort(decreasing = TRUE)
+T2 <- cumsum(T1)
+
+Table <- cbind(T1, T2)
+colnames(Table) <- c("Contrib", "Contrib Cum")
+
+#Afficher uniquement les 10 premières lignes
+Table[1:10, ] |>
+  round(2) |> 
+  kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+
+```
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des Individus à l'axe 1 "}
+knitr::include_graphics("Mod_ind_1.png")
+knitr::include_graphics("Tab_ind_1.png")
+
+```
+
+Ce graphique confirme ce que nous avons vu sur le graphique précédent.
+Ainsi, les trois premiers Individus contribuent à environ **`r Table[3,2] |> round(2)`** % d'inertie dans l'axe 1.
+
+### Conclusion de l'axe 1 
+
+L'axe 1 semble refléter une dimension de désengagement électoral ou de faible soutien aux partis traditionnels dans certaines régions. Les régions **d'Outre-Mer** et **la Corse**, affichent des résultats modestes pour les partis de gauche et de droite, suggérant une faible polarisation politique et un possible désintérêt électoral. L'axe met ainsi en lumière des régions où les partis traditionnels peinent à mobiliser, révélant des spécificités locales marquées dans leur comportement électoral.
+
+
+## Étude de l'axe 2 
+
+```{r, include=FALSE}
+nuagevar <- explor::prepare_results(resacm)
+graph <- tagList(
+  tags$h2(
+    "Nuage des Variables axe 1 et 2", 
+    style = "text-align: center; font-size: 20px; margin-bottom: 20px;"),
+  explor::MCA_var_plot(
+    nuagevar, xax = 1, yax = 2,
+    var_lab_min_contrib = 0, col_var = "Variable",
+    symbol_var = "Type", 
+    size_var = NULL, size_range = c(10, 300), labels_size = 10, point_size = 56,
+    transitions = TRUE, labels_positions = "auto", labels_prepend_var = FALSE
+  ))
+
+graph
+```
+
+```{r, include=FALSE}
+nuagevar <- explor::prepare_results(resacm)
+explor::MCA_var_plot(nuagevar, xax = 2, yax = 2,
+                     var_lab_min_contrib = 0, col_var = "Variable",
+                     symbol_var = "Type", 
+                     size_var = NULL,
+                     size_range = c(10, 300), labels_size = 10, point_size = 56,
+                    transitions = TRUE,
+                     labels_positions = NULL, labels_prepend_var = FALSE)
+
+```
+
+
+```{r, fig.show='hold', out.width='45%', fig.cap="Nuages des variables pour l'axe 2 et pour l'axe 1,2"}
+knitr::include_graphics("Nuage_var_2.png")
+knitr::include_graphics("Nuage_var_1_2.png")
+
+```
+
+Sur le graphique de droite nous pouvons voir que les modalités qui contribuent le plus à l'axe 2 dans les positives sont :  
+
+- Voix ED Moyen 
+- Voix P Fort 
+- Voix UG Fort 
+
+\newpage 
+
+### Contributions des modalités 
+\ 
+```{r, fig.height=4, fig.width=5, include=FALSE}
+fviz_contrib(resacm,choice = "var",axes = 2,)+ggtitle("Contributions des modalites à l'axe 2")
+
+T1 <- resacm$var$contrib[, 2] |> sort(decreasing = TRUE)
+T2 <- cumsum(T1)
+
+Table <- cbind(T1, T2)
+colnames(Table) <- c("Contrib", "Contrib Cum")
+```
+
+
+```{r, include=FALSE}
+# Afficher uniquement les 10 premières lignes
+Table[1:10, ] |>
+  round(2) |> 
+  kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+```
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des modalités à l'axe 2 "}
+knitr::include_graphics("Mod_var_2.png")
+knitr::include_graphics("Tab_var_2.png")
+
+```
+
+Ce graphique confirme ce que nous avons vu sur le graphique précédent.
+Ainsi, les trois premières modalités contribuent à environ **`r Table[3,2] |> round(2)`** % d'inertie dans l'axe 2.
+
+
+### Contributions des individus 
+
+Comme pour l'axe 1, nous allons habiller les régions avec les modalités qui contribuent le plus, à savoir **Voix_UG** et **Voix_ED**.
+
+```{r, include=FALSE}
+res <- explor::prepare_results(resacm)
+explor::MCA_ind_plot(res, xax = 1, yax = 2, ind_sup = FALSE, lab_var = NULL,
+                     ind_lab_min_contrib = 0, col_var = "Voix_UG", labels_size = 9,
+                     point_opacity = 0.5,
+                     opacity_var = NULL, point_size = 64, 
+                     ellipses = TRUE, transitions = TRUE,
+                     labels_positions = NULL, xlim = c(-2, 2), ylim = c(-2, 2))
+```
+
+```{r, include=FALSE}
+res <- explor::prepare_results(resacm)
+explor::MCA_ind_plot(res, xax = 1, yax = 2, ind_sup = FALSE, lab_var = NULL,
+    ind_lab_min_contrib = 0, col_var = "Voix_ED", labels_size = 9, point_opacity = 0.5,
+    opacity_var = NULL, point_size = 64, ellipses = TRUE, transitions = TRUE,
+    labels_positions = NULL, xlim = c(-2, 2), ylim = c(-2, 2))
+```
+
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Nuages des individus avec habillage pour Voix ED et Voix UG"}
+knitr::include_graphics("Nuage_ind_ED.png")
+knitr::include_graphics("Nuage_ind_UG.png")
+
+```
+
+
+- Les régions caractérisées par une **voix moyenne** de la partie extrême droite se situent principalement dans la partie positive de l'axe 2, tandis que celles caractérisées par une **voix forte** de cette même partie se trouvent dans la partie négative de l'axe 2.
+- Les régions caractérisées par une **voix forte** de la partie Union de Gauche se situent principalement dans la partie positive de l'axe 2.
+
+
+
+\newpage
+
+```{r results='asis',fig.width=8, fig.height=5, include=FALSE}
+
+fviz_contrib(resacm,choice = "ind",axes = 2)+ggtitle("Contributions des individus à l'axe 2")
+
+T1 <- resacm$ind$contrib[, 2] |> sort(decreasing = TRUE)
+T2 <- cumsum(T1)
+
+Table <- cbind(T1, T2)
+colnames(Table) <- c("Contrib", "Contrib Cum")
+
+# Afficher uniquement les 10 premières lignes
+Table[1:10, ] |>
+  round(2) |> 
+  kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+
+```
+
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des Individus à l'axe 2 "}
+knitr::include_graphics("Mod_ind_2.png")
+knitr::include_graphics("Tab_ind_2.png")
+
+```
+
+
+La région Bretagne se distingue fortement sur l’axe 2, où elle contribue significativement à l'inertie, représentant **`r Table[1,2] |> round(2)`** %. Cela souligne son rôle déterminant dans la structuration de cet axe, reflétant des spécificités marquées dans son comportement électoral
+
+
+### Conclusion de l'axe 2 
+
+L'axe 2 révèle une polarisation politique marquée entre les partis présidentiels, l'Union Gauche et l'Extrême Droite. La Bretagne se distingue par son soutien aux partis de gauche et présidentiels, l'Île-de-France par son appui aux partis modérés, et Auvergne-Rhône-Alpes par une combinaison de soutiens aux partis modérés et à l'Extrême Droite. Cet axe reflète une diversité politique et une polarisation entre les principaux courants du paysage électoral français.
+
+
+
+
+\newpage
+
+# <span style="color: #127434;">Clustering</span>
+
+La méthode de clustering consiste à regrouper des individus partageant des caractéristiques communes en différents groupes. Nous avons réaliser un clustering à partir de notre ACM vu précedemment.
+
+## Réalisation du Clustering
+
+```{r}
+acm_hcpc <- HCPC(resacm, graph = F,
+                 consol = F)
+
+```
+
+```{r}
+acm_hcpc2 <- HCPC(resacm, graph = FALSE,
+                    consol = F, nb.clust = 2)
+
+acm_hcpc_consol <- HCPC(resacm, graph = FALSE,
+                    consol = T, nb.clust = 2)
+```
+
+
+Dans un premier temps, nous avons réalisé des graphiques pour déterminer le nombre optimal de clusters à choisir. Deux mesures principales ont été analysées :
+
+- **Inertie intra-cluster (Within Cluster Inertia)** : elle mesure la variance totale à l'intérieur des clusters, indiquant à quel point les points d’un même cluster sont proches de leur centre.
+- **Gain d’inertie inter-cluster (Between Cluster Inertia Gain)** : elle mesure la variance entre les clusters, montrant à quel point ces derniers sont bien séparés.
+
+\ 
+
+```{r, fig.width=5, fig.height=4}
+k <- 20
+
+# Données pour les inerties (within et inert.gain)
+within_data <- data.frame(within = acm_hcpc2$call$t$within[1:k] / acm_hcpc2$call$t$within[1])
+inert_gain_data <- data.frame(inert_gain = acm_hcpc2$call$t$inert.gain[1:k])
+
+plot_within <- ggplot(within_data, aes(x = 1:k, y = within)) +
+  geom_bar(stat = "identity", fill = col_ind, alpha = 0.8) +
+  labs(title = "Within cluster inertia", x = "") +
+  theme_minimal()
+
+plot_inert_gain <- ggplot(inert_gain_data, aes(x = 1:k, y = inert_gain)) +
+  geom_bar(stat = "identity", fill = col_ind, alpha = 0.8) +
+  labs(title = "Between inertia gain", x = "") +
+  theme_minimal()
+
+# Utilisation de grid.arrange pour afficher les graphiques côte à côte
+grid.arrange(plot_within, plot_inert_gain, ncol = 2)
+
+```
+
+Dans ce contexte, l’inertie interne diminue rapidement, ce qui est un bon signe. Cela signifie que les points au sein des clusters deviennent rapidement plus proches de leurs centres respectifs. Ce comportement permet d’identifier un nombre optimal de clusters où l’inertie interne devient suffisamment faible.
+
+En parallèle, le graphique du gain d’inertie inter-cluster montre une séparation initiale élevée entre certains clusters. Cela reflète une bonne distinction entre ces derniers. Cependant, au-delà de 2 clusters, les améliorations deviennent marginales. 
+
+Ces observations suggèrent qu’un nombre modéré de clusters, en l’occurrence 2, est probablement optimal, car l’ajout de clusters supplémentaires n’apporte pas de gains significatifs en termes de séparation ou de compacité des clusters.
+
+
+```{r, fig.width=4, fig.height=4}
+
+dendrog1 <- fviz_dend(acm_hcpc, cex = 0.3, repel = T, show_labels = FALSE, xlab = "",
+          main = "Dendrogramme 1", k_colors = "black")
+
+dendrog2 <- fviz_dend(acm_hcpc2, cex = 0.3, repel = T, show_labels = FALSE, xlab = "",
+          main = "Dendrogramme 2")
+
+ggarrange(dendrog1, dendrog2)
+
+```
+
+Le dendrogramme illustre la manière dont les régions se regroupent en fonction des variables analysées. Il permet de visualiser la hiérarchie des clusters résultant de l’analyse des correspondances multiples (ACM), en montrant les étapes successives d’agrégation des groupes. 
+
+Ici, on observe clairement la présence de **deux clusters**, ce qui confirme une structure cohérente dans les données analysées.
+
+
+```{r, fig.height=5, fig.width=7}
+
+f1 <- fviz_cluster(acm_hcpc2, geom = 'point', 
+                   ellipse = T, 
+                   axes = c(1,2),
+                   ggtheme = theme_minimal()) +
+  labs(title= "Clusters sans consolidation") +
+  theme(legend.position = "none")
+
+f2 <- fviz_cluster(acm_hcpc_consol, 
+                   geom = 'point', 
+                   ellipse = T, 
+                   axes = c(1,2),
+                 ggtheme = theme_minimal()) +
+  labs(title= "Clusters avec consolidation") +
+  theme(legend.position = "none")
+
+ggarrange(f1,f2)
+```
+
+\ 
+
+Nous avons par la suite réalisé 2 clusterings, un sans consolidation et un avec consolidation. 
+
+On observe que la dimension 1 représente **`r resacm$eig[1,2] |>round(2)`%** et la dimension 2 représente **`r resacm$eig[2,2] |>round(2)`%** de la variabilité. La consolidation des clusters permet de stabiliser les regroupements, de réduire l’inertie within. Cela nous permet d’augmenter la précision de nos deux clusters.
+\newpage
+
+## Parangons 
+
+Les parangons correspondent aux individus les plus proches du centre du cluster. 
+
+Sur ce tableau, on peut remarquer pour le cluster 1 que les individus prennent les modalités **Fort, Moyen et Faible**. 
+
+
+```{r}
+para <- acm_hcpc_consol$desc.ind$para
+dist <- acm_hcpc_consol$desc.ind$dist
+```
+
+```{r}
+par1 <- names(para[[1]]) # noms des parangons du cluster 1
+par2 <- names(para[[2]])
+dist1 <- names(dist[[1]])
+dist2 <- names(dist[[2]])  # Distances des individus pour le Cluster 2
+```
+
+```{r}
+dataacm2 <- table_voix
+```
+
+```{r,fig.width=4, fig.height=4}
+dataacm2[c(par1, par2),] |> 
+   kable() |> 
+   kable_styling(full_width = FALSE,
+                 position = "center", 
+                 font_size = 5)  |> 
+   pack_rows("Cluster 1", 1, 
+             length(par1)) |> 
+   pack_rows("Cluster 2", 
+             length(par1) +1 , 
+             length(par1) + length(par2))
+```
+
+Le **Cluster 1** regroupe les régions fortement peuplées, caractérisées par un nombre très élevé d'inscrits et une grande diversité politique. Ces régions sont stratégiques pour les élections législatives, car elles concentrent une part importante des électeurs et présentent des résultats très disputés entre les principaux blocs politiques. 
+
+On y observe un fort soutien pour l'Union de la Gauche (modalité **fort** en majorité et **moyen**) et l'extrême droite (modalité **fort** dans toutes les régions sauf l'Ile-de-France), tandis que le parti présidentiel bénéficie d’une participation modérée (modalité **moyen** pour toutes les régions). 
+
+Cette configuration reflète des visions politiques opposées et une compétition électorale intense. Par ailleurs, le comportement électoral y est diversifié, notamment avec une présence notable du Parti Populaire (PP). Ces régions se situent au centre du cluster, symbolisant un équilibre entre les différentes forces politiques.
+
+Le **Cluster 2**, quant à lui, regroupe principalement des régions peu peuplées, souvent localistes, avec une forte représentation des régions d'outre-mer. 
+
+Ces zones se distinguent par un faible soutien aux grands courants politiques nationaux, à part la Corse qui soutient **moyennement** l'extrême droite et la Guadeloupe qui soutient **moyennement** l'union de la gauche. Les électeurs y privilégient des candidats locaux, souvent indépendants. 
+
+Dans ces régions, les élections législatives se joueront davantage sur des thématiques locales telles que l’économie régionale, l’emploi ou les conditions de vie, plutôt que sur les enjeux nationaux.
+
+## More Typical 
+
+On s’intéresse à présent aux individus “more typical” qui désignent les individus les plus éloignés du centre du cluster.
+
+```{r,fig.width=5, fig.height=5}
+dataacm2[c(dist1, dist2),] |> 
+  kable() |>
+  kable_styling(
+    full_width = FALSE,
+    position = "center", 
+    font_size = 5, 
+    latex_options = "hold_position",
+  )  |> 
+  pack_rows("Cluster 1", 1, 
+            length(dist1)) |> 
+  pack_rows("Cluster 2", length(dist1) +1 , 
+            length(dist1) + length(dist2))
+
+```
+
+**Le Cluster 1** regroupent les régions qui se distinguent par un soutien significatif à l'union de la gauche et à l'extrême droite, en accord avec les tendances observées au niveau national. Bien que le parti présidentiel n’y domine pas, il conserve une présence modérée. Ces régions sont considérées comme les plus représentatives de ce cluster, où l'union de la gauche et l'extrême droite se partagent la majorité des voix.
+
+On parle de régions "plus extrêmes" en raison d'une polarisation particulièrement marquée entre ces deux forces politiques, bien que le parti présidentiel y conserve un rôle secondaire. 
+
+**Le Cluster 2** regroupent les régions qui 
+affichent un faible soutien aux grands blocs politiques nationaux, mais un fort soutien aux candidats indépendants, qu’ils soient locaux ou régionalistes. Leur population inscrite est faible, ce qui limite leur poids électoral à l’échelle nationale. 
+
+Ces régions, souvent moins peuplées, se caractérisent par des dynamiques politiques davantage centrées sur des enjeux locaux que sur les grandes orientations nationales.
+
+## Caracteristiques des Clusters 
+
+```{r, results='asis',fig.width=5, fig.height=5}
+table_data <- acm_hcpc_consol$desc.var$category$"1"
+
+# Affichage du tableau dans la console
+kable(table_data, caption = "Caractéristiques du cluster 1")
+
+```
+Ce tableau représente les différentes caractéristiques du cluster 1. On interprète la première colonne comme suit : la part des individus prenant cette modalité dans notre base de données est présente dans ce cluster.
+
+- Nous pouvons remarquer que  **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][1,1], 2)`%** des individus ayant un soutien **moyen** pour le Parti présidentiel  et un soutien **fort** pour l'extrême droite se trouvent dans ce cluster.
+Donc le parti présidentiel n'est ni dominant, ni marginalisé ; l'extrême droite quant à elle est une force politique majeure et une caractéristique dominante dans ce cluster.
+
+- À l'opposé, on note seulement **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][6,1], 2)`%** des individus présentant une modalité **Faible** pour la variable **Voix_P** font parti du Cluster 1. 
+
+- On a également **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][4,1], 2)`%** des individus ayant voté **UG faible et ED faible** qui sont présent dans ce cluster.
+
+La deuxième colonne s’interprète comme la part de tous les individus du cluster prend cette modalité.
+
+- Ainsi, nous pouvons exprimer que **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][1,2], 2)`%** de tous les individus du cluster 1 présente la modalité **Moyen** pour la variable **Voix_P**. 
+
+- On retrouve la modalité Faible pour la variable **Voix_IND** avec **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][2,2], 2)`%**. Les indépendants joue un rôle très marginal ici.
+
+- De meme, **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][3,2], 2)`%** de tous les individus du Cluster 1 presente la modalité **Fort** pour la variable **Voix_ED**. 
+
+\newpage
+```{r, results='asis', fig.width=5, fig.height=5}
+table_data <- acm_hcpc_consol$desc.var$category$"2"
+
+# Affichage du tableau dans la console
+kable(table_data, caption = "Caractéristiques du cluster 2")
+```
+
+Ce Tableau suivant représente les differentes caracteristiques du Cluster 2.
+
+- **`r round(acm_hcpc_consol$desc.var$category$"2"[,-c(4,5)][2,1], 2)`%** des individus avec une modalité **Faible** pour les **Voix_UG et Voix_ED** sont dans ce deuxième cluster. 
+- A contrario, **`r round(acm_hcpc_consol$desc.var$category$"2"[,-c(4,5)][6,1], 2)`%** des individus ayant une modalité **moyen et fort** pour les variables **Voix_ED et Voix_P** sont présents dans ce cluster.
+
+On a également **`r round(acm_hcpc_consol$desc.var$category$"2"[,-c(4,5)][1,1], 2)`%** des individus qui ont voté de manière **faible pour les IND** , et seulement **`r round(acm_hcpc_consol$desc.var$category$"2"[,-c(4,5)][5,1], 2)`%** font parti du cluster.
+
+### Conclusion
+
+Le Cluster 1 représente des régions où la compétition politique est fortement dominée par des blocs nationaux, notamment l'Extrême droite et le Parti présidentiel. Ces régions seront des terrains stratégiques pour les législatives.
+
+Le Cluster 2 met en lumière des régions désengagées des grandes dynamiques nationales, avec un faible soutien aux blocs traditionnels.
+
+
+\newpage 
+# <span style="color: #127434;">Analyse en Composantes Multiples 2 </span>
+
+Lors de nos premières analyses, nous avons inclus les régions métropolitaines, la Corse et les régions d’outre-mer.  Cela nous a permis d’identifier deux groupes distincts, chacun caractérisé par des spécificités propres : les régions d’outre-mer d’un côté et les régions métropolitaines de l’autre.  Pour aller plus loin, nous avons décidé de nous recentrer sur la France métropolitaine afin d’examiner plus précisément les dynamiques électorales, en excluant la Corse et les régions d’outre-mer.
+
+Nous nous sommes intéressés à la question suivante :
+
+- **Dans quelle mesure les régions métropolitaines adoptent-elles des comportements électoraux homogènes ou différenciés face à la diversité de l'offre politique ?**
+
+Pour répondre à cette question, nous utilisons une Analyse des Correspondances Multiples (ACM), qui permet de mettre en lumière les relations entre les résultats électoraux par parti (en pourcentage de voix) et les régions métropolitaines.
+
+
+```{r  echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+
+df <- read.csv("resultat_combiné_région_1.csv", sep = ";")
+
+df <- df[!df$Libellé.région %in% c("Guadeloupe", "Martinique", "Guyane", "La Réunion", "Mayotte", "Corse"), ]
+
+
+```
+
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+
+table_voix <- df[, c(2, grep("^Voix\\.\\d+$", colnames(df)))]
+
+
+
+voix_cols <- grep("^Voix\\.\\d+$", colnames(table_voix))  
+
+table_voix[, voix_cols] <- table_voix[, voix_cols] / table_voix[, 1] * 100
+
+
+voix_cols <- grep("^Voix\\.\\d+$", colnames(table_voix))
+table_voix[is.na(table_voix)] <- 0
+
+table_voix[, voix_cols] <- lapply(table_voix[, voix_cols], function(x) {
+  cut(x,
+      breaks = c(-Inf, 10, 20, Inf),       
+      labels = c("Faible", "Moyen", "Fort"),  
+      right = T)            
+})
+
+
+rownames(table_voix) <- df$Libellé.région
+
+```
+
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+colnames(table_voix) <- c("inscrit", "Voix_ED", "Voix_UG", "Voix_EG", "Voix_UD", "Voix_P", "Voix_IND")
+
+
+resacm2 <- MCA(table_voix, quanti.sup = 1 ,graph=F)
+
+```
+
+## Étude des inerties
+
+\ 
+```{r fig.height=4.25, fig.width=4.5}
+fviz_screeplot(resacm2,addlabels=TRUE)+
+  ggtitle("Représentation des parts des inerties") + ylab("Part de la variance")
+```
+
+\ 
+```{r, results='asis', fig.align='center', echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+tab<-resacm2$eig |> 
+  round(2) |>  t() 
+
+rownames(tab)<-c("Inertie","Part d'inertie","Cumul")
+
+tab |> round(2)|>  kable(caption = "Tableau des valeurs propres", align = "c") |>  
+kable_styling(full_width = FALSE,
+    position = "center",
+    bootstrap_options = c("striped")
+    )
+```
+
+Nous remarquons que les deux premiers axes captent à eux seuls **`r resacm2$eig[2,3] |>round(2)`%** de l'inertie totale.
+
+Cette forte proportion d'inertie permet de visualiser efficacement les principales tendances des données et d'identifier les relations majeures entre les régions métropolitaines et les partis politiques.
+
+En ajoutant un troisième axe, nous atteignons 95.01%, permettant de couvrir une très grande partie de l'information. Les dimensions suivantes n'apportent que très peu d'inertie, avec 0.03 % pour le quatrième axe qui peuvent être considérés comme négligeables.
+
+## Étude de l'axe 1
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+par(cex = 0.5) 
+library(explor)
+library(htmltools)
+
+nuagevar <- explor::prepare_results(resacm2)
+graph <- tagList(
+  tags$h2(
+    "Nuage des Variables axe 1 et 2", 
+    style = "text-align: center; font-size: 20px; margin-bottom: 20px;"
+  ),
+  explor::MCA_var_plot(
+    nuagevar, 
+    xax = 1,       
+    yax = 2,      
+    var_lab_min_contrib = 0, 
+    col_var = "Variable",    
+    symbol_var = "Type",    
+    size_var = NULL,        
+    size_range = c(10, 300), 
+    labels_size = 10,       
+    point_size = 56,        
+    transitions = TRUE,     
+    labels_positions = "auto", 
+    labels_prepend_var = FALSE 
+  )
+)
+browsable(graph)
+
+
+
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+res <- explor::prepare_results(resacm2)
+
+
+graph_with_title <- tagList(
+  tags$h2(
+    "Nuages des variables axe 1", 
+    style = "text-align: center; font-size: 20px; margin-bottom: 20px;"
+  ),
+  explor::MCA_var_plot(
+    res, xax = 1, yax = 1, var_sup = TRUE, 
+    var_sup_choice = NULL,
+    var_lab_min_contrib = 0, col_var = "Variable", symbol_var = "Type", 
+    size_var = NULL, size_range = c(10, 300), labels_size = 10, 
+    point_size = 56, transitions = FALSE,
+    labels_positions = "auto", labels_prepend_var = FALSE, 
+    xlim = c(-2, 2.5), ylim = c(-2, 2)
+  )
+)
+
+browsable(graph_with_title)
+
+
+```
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Nuages des variables pour l'axe 1 et pour l'axe 1,2"}
+knitr::include_graphics("Nuage_var_1_22.png.jpeg")
+knitr::include_graphics("Nuage_var_12.png.jpeg")
+
+```
+
+Sur le graphique nous pouvons voir que les modalités qui contribuent le plus à l'axe 1 dans les positives sont :
+
+-   Voix ED Moyen
+-   Voix P Fort
+-   Voix UG Moyen et Fort
+
+### Contributions des modalités
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+fviz_contrib(resacm2,choice = "var",axes = 1,)+ggtitle("Contribution des modalites à l'axe F1")
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=F}
+T1 <- resacm2$var$contrib[,1] |> sort(decreasing = T) 
+T2 <- cumsum(T1)
+
+Table <- cbind(T1,T2)
+colnames(Table) <- c("Contrib", "Contrib Cum")
+
+Table |>
+  round(2) |> 
+  kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+```
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des modalités à l'axe 1 "}
+knitr::include_graphics("Mod_var_12.png.jpeg")
+knitr::include_graphics("Tab_var_12.png.jpeg")
+
+```
+
+Ce graphique confirme nos propos sur les variables qui contribuent le plus à l'axe 1. Ainsi, les trois premières modalités contribuent à environ **`r Table[3,2] |> round(2)`** % d'inertie dans l'axe 1.
+
+\newpage
+### Contributions des individus
+
+```{r, results='asis', fig.width=8, fig.height=3.5, fig.cap="Nuage des individus pour l'axe 1 et 2"}
+ fviz_mca_ind(resacm2, col.ind = "contrib",
+                  axes = c(1,2),
+                  alpha.ind = 0.7,
+              ylim = c(-1, 1),
+                  title = "") +
+      theme_minimal()
+```
+
+Nous remarquons que l'Ile-de-France, et la Bretagne sont les régions qui contribuent le plus à l'axe 1 dans les positives. Nous allons habiller les régions avec les modalités qui contribuent le plus, à savoir **Voix_ED** et **Voix_P**, afin de mieux visualiser les modalités et leurs relations.
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+res <- explor::prepare_results(resacm2)
+explor::MCA_ind_plot(res, xax = 1, yax = 2, ind_sup = FALSE, lab_var = NULL,
+    ind_lab_min_contrib = 0, col_var = "Voix_ED", labels_size = 9, point_opacity = 0.5,
+    opacity_var = NULL, point_size = 64, ellipses = TRUE, transitions = TRUE,
+    labels_positions = NULL, xlim = c(-2, 2), ylim = c(-2, 2))
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+res <- explor::prepare_results(resacm2)
+explor::MCA_ind_plot(res, xax = 1, yax = 2, ind_sup = FALSE, lab_var = NULL,
+    ind_lab_min_contrib = 0, col_var = "Voix_P", labels_size = 9, point_opacity = 0.5,
+    opacity_var = NULL, point_size = 64, ellipses = TRUE, transitions = TRUE,
+    labels_positions = NULL, xlim = c(-2, 2), ylim = c(-2, 2))
+```
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Nuages des individus avec habillage pour Voix ED et Voix P"}
+knitr::include_graphics("Nuage_ind_ED1.png.jpeg")
+knitr::include_graphics("Nuage_ind_P1.png.jpeg")
+
+```
+
+
+- Les régions caractérisées par une **voix moyenne** de l'extrême droite se situe dans la partie positive de l'axe 1. Tandis que les **voix forts** de l'extrême droite se trouvent dans la partie Positive de l'axe 2, à l'exception de la région Grand Est.
+
+- Les régions caractérisées par une **voix fort** du parti présidentiel se situe dans la partie positive de l'axe 1 et l'axe 2.
+
+\newpage
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+
+fviz_contrib(resacm2, choice="ind", axes = 1,
+                     ggtheme = theme_classic())
+```
+
+```{r results='asis',fig.width=8, fig.height=5, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=F}
+T1 <- resacm2$ind$contrib[,1] |> sort(decreasing = T) 
+T2 <- cumsum(T1)
+
+Table <- cbind(T1,T2)
+colnames(Table) <- c("Contrib", "Contrib Cum")
+
+Table |>
+  round(2) |> 
+  kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+
+```
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des Individus à l'axe 1 "}
+knitr::include_graphics("Mod_ind_11.png.jpeg")
+knitr::include_graphics("Tab_ind_11.png.jpeg")
+
+```
+
+
+Dans ce tableau nous pouvons voir que la Bretagne contribue de manière significative à l'axe 1. Ainsi, les deux premiers Individus contribuent à environ **`r Table[2,2] |> round(2)`** % d'inertie dans l'axe 1.
+
+
+### Conclusion de l'axe 1 
+
+Pour conclure, l'axe 1 semble capturer une **dimension d'engagement électoral**, opposant principalement les modalités fortes aux modalités faibles ou moyennes. Cela signifie que cet axe distingue les partis bénéficiant d'un soutien électoral intense (Voix_ED_Fort, Voix_P_Fort, Voix_UG_Fort) de ceux avec un soutien plus modéré ou faible. Les contributions cumulées des modalités fortes confirment leur rôle structurant dans cet axe.
+
+## Etude de l'axe 2
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+nuagevar <- explor::prepare_results(resacm2)
+graph <- tagList(
+  tags$h2(
+    "Nuage des Variables axe 1 et 2", 
+    style = "text-align: center; font-size: 20px; margin-bottom: 20px;"),
+  explor::MCA_var_plot(
+    nuagevar, xax = 1, yax = 2,
+    var_lab_min_contrib = 0, col_var = "Variable",
+    symbol_var = "Type", 
+    size_var = NULL, size_range = c(10, 300), labels_size = 10, point_size = 56,
+    transitions = TRUE, labels_positions = "auto", labels_prepend_var = FALSE
+  ))
+
+graph
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+nuagevar <- explor::prepare_results(resacm2)
+explor::MCA_var_plot(nuagevar, xax = 2, yax = 2,
+                     var_lab_min_contrib = 0, col_var = "Variable",
+                     symbol_var = "Type", 
+                     size_var = NULL,
+                     size_range = c(10, 300), labels_size = 10, point_size = 56,
+                    transitions = TRUE,
+                     labels_positions = NULL, labels_prepend_var = FALSE)
+
+```
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Nuages des variables pour l'axe 1 et pour l'axe 1,2"}
+knitr::include_graphics("Nuage_var_1_22.png.jpeg")
+knitr::include_graphics("Nuage_var_12.png.jpeg")
+
+
+```
+
+Sur le graphique nous remarquons que les modalités qui contribuent le plus à l'axe 2 dans les positifs sont :
+
+-   Voix UD Faible et Moyen
+-   Voix P Fort
+-   Voix ED Moyen et Fort
+
+\newpage
+### Contributions des modalités
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+fviz_contrib(resacm2, choice = "var", axes = 2,)+
+  ggtitle("Contribution des modalites à l'axe F2")
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+T1 <- resacm2$var$contrib[,2] |> sort(decreasing = T) 
+T2 <- cumsum(T1)
+
+Table <- cbind(T1,T2)
+colnames(Table) <- c("Contrib", "Contrib Cum")
+
+Table |>
+  round(2) |> 
+  kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+```
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des modalités à l'axe 2 "}
+knitr::include_graphics("Mod_var_22.png.jpeg")
+knitr::include_graphics("Tab_var_22.png.jpeg")
+
+```
+
+On remarque que l'Union de la Droite avec les modalités **faible** et **moyen** contribuent de manière significatives à l'axe 2.
+
+Ce graphique confirme ce que nous avons vu sur le graphique précédent. Ainsi, les trois premières modalités contribuent à environ **`r Table[3,2] |> round(2)`** % d'inertie dans l'axe 2.
+
+### Contributions des individus
+
+```{r, results='asis', fig.width=8, fig.height=3.5, fig.cap="Nuage des individus pour l'axe 1 et 2"}
+ fviz_mca_ind(resacm2, col.ind = "contrib",
+                  axes = c(1,2),
+                  alpha.ind = 0.7,
+              ylim = c(-1, 1),
+                  title = "") +
+      theme_minimal()
+```
+
+**Bretagne**, **l'Occitanie**, **la Nouvelle-Aquitaine**, et **la Provence-Alpes-Côte d'Azur** sont les régions qui contribuent le plus à l'axe 2. Comme pour l'axe 1, nous allons habiller les régions avec les modalités qui contribuent le plus, à savoir **Voix_UD**.
+
+\newpage
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+res <- explor::prepare_results(resacm2)
+
+explor::MCA_ind_plot(res, xax = 1, yax = 2, ind_sup = FALSE, lab_var = NULL,
+    ind_lab_min_contrib = 0, col_var = "Voix_UD", labels_size = 9, point_opacity = 0.5,
+    opacity_var = NULL, point_size = 64, ellipses = TRUE, transitions = F,
+    labels_positions = NULL, xlim = c(-2, 2.5), ylim = c(-2, 2))
+
+
+```
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Nuages des individus avec habillage pour Voix UD"}
+knitr::include_graphics("Nuage_ind_UD2.png.jpeg")
+
+```
+
+- Nous pouvons voir que les regions caracterisées par une **Voix Faible** de la partie de l'union de Droite se situent principalement dans la partie positive de l'axe 2, alors que les régions qui sont caracterisés par **Voix Moyen** de la partie de l'union de Droite se situent dans la partie négative de l'axe 2
+
+
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+fviz_contrib(resacm2, choice="ind", axes =2, 
+                     ggtheme = theme_classic())
+```
+
+```{r results='asis',fig.width=8, fig.height=5, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE, include=FALSE}
+
+T1 <- resacm2$ind$contrib[,2] |> sort(decreasing = T) 
+T2 <- cumsum(T1)
+
+Table <- cbind(T1,T2)
+colnames(Table) <- c("Contrib", "Contrib Cum")
+
+Table |>
+  round(2) |> 
+  kable() |> 
+  kable_styling(full_width = FALSE,
+                position = "center", 
+                latex_options = "hold_position")
+
+```
+
+
+```{r, fig.show='hold', out.width='49%', fig.cap="Contributions des Individus à l'axe 2 "}
+knitr::include_graphics("Mod_ind_22.png.jpeg")
+knitr::include_graphics("Tab_ind_22.png.jpeg")
+
+```
+
+**Pays de la Loire** et **Auvergne Rhone Alpes** contribuent le plus à l'axe 2, représentant **`r Table[2,2] |> round(2)` %**.
+
+
+### Conclusion de l'axe 2 
+
+Pour conclure, l'axe 2 semble capturer une **dimension d'engagement électoral** différencié marquée par une opposition entre des électeurs fortement engagés pour le parti présidentiel (Voix_P_Fort) et l'extrême-droite (Voix_ED_Moyen, Voix_ED_Fort), et les électeurs votants majoritairement pour l'Union de Droite (Voix_UD_Faible, Voix_UD_Moyen) 
+
+\newpage
+# <span style="color: #127434;">Clustering 2</span>
+
+Nous avons réaliser un clustering à partir de notre ACM vu précedemment.
+
+## Réalisation du Clustering
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+acm_hcpc <- HCPC(resacm2, graph = F,
+                 consol = F)
+
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+acm_hcpc2 <- HCPC(resacm2, graph = FALSE,
+                    consol = F, nb.clust = 2)
+
+acm_hcpc_consol <- HCPC(resacm2, graph = FALSE,
+                    consol = T, nb.clust = 2)
+```
+
+Dans un premier temps, nous avons réalisé des graphiques pour déterminer le nombre optimal de clusters à choisir.
+
+```{r, fig.width=5, fig.height=4, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+k <- 20
+
+within_data <- data.frame(within = acm_hcpc2$call$t$within[1:k] / acm_hcpc2$call$t$within[1])
+inert_gain_data <- data.frame(inert_gain = acm_hcpc2$call$t$inert.gain[1:k])
+
+plot_within <- ggplot(within_data, aes(x = 1:k, y = within)) +
+  geom_bar(stat = "identity", fill = col_ind, alpha = 0.8) +
+  labs(title = "Within cluster inertia", x = "") +
+  theme_minimal()
+
+plot_inert_gain <- ggplot(inert_gain_data, aes(x = 1:k, y = inert_gain)) +
+  geom_bar(stat = "identity", fill = col_ind, alpha = 0.8) +
+  labs(title = "Between inertia gain", x = "") +
+  theme_minimal()
+
+
+grid.arrange(plot_within, plot_inert_gain, ncol = 2)
+
+```
+
+Dans ce contexte, **l'inertie interne diminue rapidement**, ce qui est un bon signe. Cela signifie que les points au sein des clusters deviennent rapidement plus proches de leurs centres respectifs. Ce comportement permet d'identifier un nombre optimal de clusters où l'inertie interne devient suffisamment faible.
+
+En parallèle, le graphique du gain d'inertie inter-cluster montre une séparation initiale élevée entre certains clusters. Cela reflète une bonne distinction entre ces derniers. Cependant, au-delà de 2 clusters, les améliorations deviennent marginales.
+
+Ces observations suggèrent qu'un nombre modéré de clusters, en l'occurrence 2, est probablement optimal, car l'ajout de clusters supplémentaires n'apporte pas de gains significatifs en termes de séparation ou de compacité des clusters.
+
+```{r, fig.width=4, fig.height=4, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+
+dendrog1 <- fviz_dend(acm_hcpc, cex = 0.3, repel = T, show_labels = FALSE, xlab = "",
+          main = "Dendrogramme 1", k_colors = "black")
+
+dendrog2 <- fviz_dend(acm_hcpc2, cex = 0.3, repel = T, show_labels = FALSE, xlab = "",
+          main = "Dendrogramme 2")
+
+ggarrange(dendrog1, dendrog2)
+
+```
+
+Le dendrogramme illustre la manière dont les régions se regroupent en fonction des variables analysées. Il permet de visualiser la hiérarchie des clusters résultant de l'analyse des correspondances multiples (ACM), en montrant les étapes successives d'agrégation des groupes.
+
+Ici, on observe clairement la présence de **deux clusters**, ce qui confirme une structure cohérente dans les données analysées.
+
+```{r, fig.height=4, fig.width=5, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+
+fviz_cluster(acm_hcpc_consol, 
+                   geom = 'point', 
+                   ellipse = T, 
+                   axes = c(1,2),
+                 ggtheme = theme_minimal()) +
+  labs(title= "Clusters avec consolidation") +
+  theme(legend.position = "none")
+
+
+```
+
+On observe que la dimension 1 représente **`r resacm2$eig[1,2] |>round(2)`%** et la dimension 2 représente **`r resacm2$eig[2,2] |>round(2)`%** de la variabilité. La consolidation des clusters permet de stabiliser les regroupements, de réduire l'inertie within. Cela nous permet d'augmenter la précision de nos deux clusters. 
+
+\newpage
+
+## Parangons
+
+Les parangons correspondent aux individus les plus proches du centre du cluster. Sur ce tableau, on peut remarquer pour le cluster 1 que les individus prennent les modalités **Fort, Moyen et Faible**.
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+para <- acm_hcpc_consol$desc.ind$para
+dist <- acm_hcpc_consol$desc.ind$dist
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+par1 <- names(para[[1]]) 
+par2 <- names(para[[2]])
+dist1 <- names(dist[[1]])
+dist2 <- names(dist[[2]]) 
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+dataacm2 <- table_voix
+```
+
+```{r,fig.width=4, fig.height=4, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+dataacm2[c(par1, par2),] |> 
+   kable() |> 
+   kable_styling(full_width = FALSE,
+                 position = "center", 
+                 font_size = 5)  |> 
+   pack_rows("Cluster 1", 1, 
+             length(par1)) |> 
+   pack_rows("Cluster 2", 
+             length(par1) +1 , 
+             length(par1) + length(par2))
+```
+
+Le **Cluster 1** regroupe les régions où le **soutien pour l'extrême droite (Voix_ED) est fort** de manière systématique. 
+
+Ces régions sont également caractérisées par une **participation moyenne pour l'Union de la Gauche** (Voix_UG) et le **parti présidentiel** (Voix_P), indiquant une certaine présence mais sans dominer le paysage politique. Les autres courants politiques (Voix_EG, Voix_UD, Voix_IND) présentent un soutien faible.
+
+Ce cluster révèle une présence marquée de l'extrême droite, suivie de près par le parti présidentiel et l'Union de la Gauche. Ces partis dominants pourraient refléter un positionnement politique centré sur des préoccupations telles que l'immigration, la sécurité et les enjeux économiques, exprimées par leurs électeurs.
+
+Ces régions sont donc stratégiques dans le cadre des élections, en raison de leur forte population inscrite, ce qui en fait des territoires clefs pour les principaux blocs politiques.
+
+
+Le **Cluster 2** est composé de régions où **l'extrême droite (Voix_ED) est moyennement représentée**, tandis que l'**Union de la Gauche (Voix_UG) obtient des soutiens forts** de manière systématique. 
+
+L'extrême gauche (Voix_EG) et les candidats indépendants (Voix_IND) obtiennent un soutien fable de la part de ces régions.
+
+Que ce soit dans le cluster 1 ou 2, on observe que le parti présidentiel (Voix_P) obtient une participation moyenne, sauf en Bretagne, où son soutien est fort. 
+
+En conclusion, les régions du Cluster 2 se caractérisent par une forte domination de l'Union de la Gauche, suivie dans un second temps par des soutiens plus modérés pour l'extrême droite, le parti présidentiel et l'Union de la Droite.
+
+Ces territoires, souvent caractérisés par une urbanisation plus prononcée, sont marqués par des préoccupations sociales et économiques comme le pouvoir d'achat, l'éducation et l'environnement, des thématiques qui résonnent particulièrement avec les électeurs de gauche et centristes. Ainsi, ces régions semblent privilégier des politiques progressistes, tout en conservant une certaine diversité dans leurs soutiens politiques.
+
+## More Typical
+
+On s'intéresse à présent aux individus "more typical" qui désignent les individus les plus éloignés du centre du cluster.
+
+```{r,fig.width=5, fig.height=5, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+dataacm2[c(dist1, dist2),] |> 
+  kable() |>
+  kable_styling(
+    full_width = FALSE,
+    position = "center", 
+    font_size = 5, 
+    latex_options = "hold_position",
+  )  |> 
+  pack_rows("Cluster 1", 1, 
+            length(dist1)) |> 
+  pack_rows("Cluster 2", length(dist1) +1 , 
+            length(dist1) + length(dist2))
+
+```
+
+Le **Cluster 1** regroupe des régions où le soutien pour l'extrême droite (Voix_ED) est fort, ce qui traduit une polarisation marquée. 
+
+On observe également un soutien moyen pour l'Union de la Gauche (Voix_UG) et le parti présidentiel (Voix_P), tandis que les autres forces politiques comme l'extrême gauche (Voix_EG) et les candidats indépendants (Voix_IND) y restent faibles.
+
+Cette configuration reflète un paysage politique fortement polarisé entre l'extrême droite et l'Union de la Gauche, avec une faible marge pour les autres courants politiques. Ces régions sont représentatives du Cluster 1 en raison de leur comportement électoral fidèle à la polarisation nationale.
+
+Le **Cluster 2** regroupe des régions qui affichent un soutien fort à l'Union de la Gauche (Voix_UG) tout en maintenant une dynamique électorale modérée pour l'extrême droite (Voix_ED). Le parti présidentiel (Voix_P) conserve également une moyenne présence dans plusieurs régions sauf pour la Bretagne qui elle vote fortement pour ce parti.
+
+Les candidats indépendants (Voix_IND) et l'extrême gauche (Voix_EG) y ont un  faible soutien .
+
+
+## Caracteristiques des Clusters
+
+```{r, results='asis',fig.width=5, fig.height=5, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+table_data <- acm_hcpc_consol$desc.var$category$"1"
+
+
+kable(table_data, caption = "Caractéristiques du cluster 1")
+
+```
+
+Ce tableau met en évidence les caractéristiques du cluster 1 en analysant les proportions des modalités présentes. 
+
+- Dans le cluster 1, **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][1,1], 2) `%** des individus ont un soutien fort pour **l'extrême droite**. Parmi, les individus ayant un soutien fort pour l'extrême droite, **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][1,2], 2)`%** sont dans ce cluster, ce qui en fait une modalité dominante et centrale. **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][1,3], 2)`%** de la population totale ont la modalité ED_Fort.
+
+- Par ailleurs, **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][2,1], 2)`%** des individus avec un soutien moyen pour l'Union de la Gauche sont présents dans ce cluster. Dans le cluster 1,  **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][2,2], 2)`%** présente la modalité Moyen pour la variable Voix_UG.
+
+- **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][3,1], 2)`%** des individus ayant la modalité UG_Fort sont dans le cluster 1, et **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][3,2], 2)`%** des membres du cluster 1 ont cette modalité, ce qui traduit une présence moins marquée. 
+
+- Enfin, **`r round(acm_hcpc_consol$desc.var$category$"1"[,-c(4,5)][4,1], 2)`%** des individus ayant un soutien moyen pour l'extrême droite n'appartient à ce cluster. 
+
+Ces résultats montrent que le cluster 1 est principalement marqué par un fort soutien à l'extrême droite, avec une contribution significative mais moins dominante de l'Union de la Gauche.
+
+\newpage
+
+```{r, results='asis', fig.width=5, fig.height=5, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+table_data <- acm_hcpc_consol$desc.var$category$"2"
+
+
+kable(table_data, caption = "Caractéristiques du cluster 2")
+```
+
+Ce Tableau suivant représente les differentes caracteristiques du Cluster 2.
+
+- Dans le cluster , **`r round(acm_hcpc_consol$desc.var$category$"2"[,-c(4,5)][1,1], 2)`%** des individus ont un soutien moyen pour l'extrême droite. Parmi, les individus ayant un soutien moyen pour l'extrême droite, **`r round(acm_hcpc_consol$desc.var$category$"2"[,-c(4,5)][1,2], 2)`%** sont dans ce cluster, ce qui en fait une modalité dominante et centrale. **`r round(acm_hcpc_consol$desc.var$category$"2"[,-c(4,5)][1,3], 2) `%** de la population totale ont la modalité ED_Moyen.
+
+- Par ailleurs, **`r round(acm_hcpc_consol$desc.var$category$"2"[,-c(4,5)][2,1], 2)`%** des individus avec un soutien fort pour l'Union de la Gauche sont présents dans ce cluster. Dans le cluster 2, **`r round(acm_hcpc_consol$desc.var$category$"2"[,-c(4,5)][2,2], 2)`%** présente la modalité Fort pour la variable Voix_UG.
+
+- Enfin, aucun individu ayant un soutien moyen pour l'extrême droite n'appartient à ce cluster. 
+
+
+### Conclusion
+
+Le cluster 1 est fortement caractérisé par un soutien fort pour l'extrême droite (Voix_ED_Fort), qui domine totalement ce groupe. L'Union de la Gauche y est également présente, principalement avec un soutien moyen. À l'inverse, les soutiens faibles ou moyens de l'extrême droite ne participent pas à ce cluster, ce qui montre une segmentation nette selon le niveau de soutien politique.
+
+Le cluster 2 est fortement caractérisé par un soutien moyen pour l'extrême droite (Voix_ED_Moyen), qui domine largement ce groupe. L'Union de la Gauche y est également représentée, mais principalement avec un soutien fort (Voix_UG_Fort). À l'inverse, les soutiens faibles ou moyens pour l'Union de la Gauche ainsi que les soutiens forts pour l'extrême droite sont totalement absents de ce cluster, traduisant une segmentation claire selon les niveaux de soutien politique spécifiques.
+
+
+# <span style="color: #127434;">Conclusion Générale</span>
+
+Grâce à l’analyse des correspondances multiples 1 (ACM) et au clustering 1, nous avons identifié deux groupes régionaux présentant des dynamiques politiques bien distinctes :
+
+- Le premier groupe se caractérise par une polarisation nationale marquée entre l’Union de la Gauche et l’extrême droite, tout en conservant une présence modérée du parti présidentiel.
+- Le deuxième groupe, quant à lui, privilégie des candidats indépendants ou régionalistes et se détache des grandes dynamiques politiques nationales.
+
+
+Les résultats de l’ACM 2 et du clustering 2 montrent une segmentation politique claire entre deux groupes:
+
+- Le cluster 1 regroupe des régions où l’extrême droite domine largement, accompagné d’une représentation secondaire mais notable de l’Union de la Gauche. Les soutiens faibles pour ces partis y sont absents, montrant une homogénéité prononcée.
+- Le cluster 2 rassemble des régions marquées par une dualité entre un soutien moyen pour l’extrême droite et un soutien fort pour l’Union de la Gauche, tout en excluant les soutiens faibles ou extrêmes pour ces deux partis, ce qui illustre une polarisation plus modérée.
+
+Ainsi, les élections législatives de 2024 s’annoncent comme un véritable tournant politique, où se mêlent polarisation nationale et enjeux locaux spécifiques. Les partis devront adapter leurs stratégies de campagne pour répondre aux attentes diversifiées des électorats, en tenant compte de ces contextes hétérogènes afin de maximiser leur présence et leur influence dans chaque région.
+
+
