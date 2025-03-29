@@ -1,7 +1,7 @@
 # **Dashboard sur les législatives  2024**
 
 lien du Dashboard : 
-https://ilayda-git.github.io/Dashboard.html
+https://ilayda-git.github.io/Dashboard/Dashboard.html
 
 
 *En 2024, les élections législatives s’annoncent comme un moment clé de la vie politique française, un baromètre des dynamiques électorales et des transformations sociales. Ce tableau de bord interactif, conçu pour analyser et visualiser les résultats, offre une plongée au cœur des tendances nationales et locales.*
