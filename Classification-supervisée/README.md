@@ -1,4 +1,4 @@
-#Utilisation du Machine Learning pour la Détection Précoce des AVC
+# **Utilisation du Machine Learning pour la Détection Précoce des AVC**
 
 Ce projet a été réalisé dans le cadre d'un travail de machine learning appliqué à la santé. L'objectif principal est de construire des modèles prédictifs capables d'identifier la survenue d'un accident vasculaire cérébral (AVC) à partir de données médicales et socio-démographiques. Dans ce contexte médical, la priorité a été donnée à la maximisation de la sensibilité, afin de limiter au maximum le nombre de faux négatifs.
 
