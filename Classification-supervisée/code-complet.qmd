@@ -1,0 +1,1319 @@
+---
+title: "Code-complet"
+format: html
+editor: source
+author: Mathias-Ilayda 
+---
+
+```{r}
+library(doParallel)
+library(ggplot2)
+library(dplyr)
+library(kableExtra)
+library(janitor)
+library(MASS)
+library(ISLR)
+library(discrim)
+library(pROC)
+library(PRROC)
+library(randomForest)
+library(styler)
+library(themis)
+library(recipes)
+library(modeldata)
+library(factoextra)
+library(FactoMineR)
+library(vip)
+library(here)
+library(ranger)
+library(kknn)
+library(naivebayes)
+library(tidymodels)
+library(tibble)
+library(knitr)
+library(ipred)
+library(dials)
+```
+
+
+
+# Importation de la base de données 
+```{r}
+data <- read.csv("healthcare-dataset-stroke-data.csv",
+                 header = T,
+                 sep = ",",
+                 dec = ".")
+data <- data[,-1] # ID ne sert à rien
+
+```
+
+
+
+```{r}
+#|wwarning: false
+
+data <- data |> mutate(
+  gender = factor(gender),  
+  hypertension = as.logical(hypertension),  
+  heart_disease = as.logical(heart_disease),
+  ever_married = factor(ever_married),  
+  work_type = factor(work_type),  
+  Residence_type = factor(Residence_type),  
+  smoking_status = factor(smoking_status),  
+  bmi = as.numeric(bmi),
+  stroke = factor(stroke) 
+) 
+
+data <- data |> mutate(
+  hypertension = factor(hypertension),
+  heart_disease=factor(heart_disease))
+```
+
+```{r, include=FALSE}
+# Arrondi les valeurs pour la varaibles age 
+data$age <- round(data$age)
+
+```
+
+
+# Modeles 
+## LDA 
+
+```{r}
+set.seed(1)
+
+split_dat <- initial_split(data, prop = 2/3, strata = stroke)
+dat_train <- training(split_dat)
+dat_test  <- testing(split_dat)
+
+dat_train <- dat_train |>  
+  mutate(stroke = factor(stroke, levels = c("0", "1")))
+
+dat_test <- dat_test |>  
+  mutate(stroke = factor(stroke, levels = c("0", "1")))
+```
+
+### Recette 
+
+```{r}
+lda_rec <- recipe(stroke ~ ., data = dat_train) |>
+  step_mutate(smoking_status = as.character(smoking_status)) |>  
+  step_mutate(smoking_status = na_if(smoking_status, "unknown")) |>  
+  step_mutate(smoking_status = factor(smoking_status)) |>  
+  step_impute_bag(all_predictors()) |>  
+  step_dummy(all_nominal_predictors()) |> 
+  step_zv(all_predictors()) |> 
+  step_center(all_numeric_predictors()) |> 
+  step_scale(all_numeric_predictors()) |> 
+  step_smotenc(stroke, over_ratio = tune(), neighbors = tune())
+
+lda_spec <- discrim_linear() |>  
+  set_mode("classification") |>  
+  set_engine("MASS")
+
+lda_wf <- workflow() |>  
+  add_recipe(lda_rec) |> 
+  add_model(lda_spec)
+```
+
+### Optimisation des hyperparamètres
+
+```{r, warning=FALSE}
+df_folds <- vfold_cv(dat_train, v = 5, strata = stroke)
+
+n_core <- detectCores(logical = TRUE)
+registerDoParallel(cores = n_core - 1)
+
+grid_vals <- expand.grid(
+  over_ratio = seq(0.1, 1, by = 0.1),
+  neighbors  = seq(3, 15, by = 2))
+
+tune_res <- tune_grid(
+  lda_wf,
+  resamples = df_folds,  
+  grid = grid_vals,
+  metrics = metric_set(
+  yardstick::f_meas, 
+  yardstick::roc_auc,
+  yardstick::accuracy,
+  yardstick::sensitivity, 
+  yardstick::specificity, 
+  yardstick::precision))
+
+
+metrics_df <- collect_metrics(tune_res)
+print(metrics_df)
+autoplot(tune_res, metric = "precision")+
+  ggtitle("Optimisation des hyperparamètres")+theme_minimal()
+
+best_params <- select_best(tune_res, metric = "precision")
+print(best_params)
+
+stopImplicitCluster()
+```
+
+### Résultats 
+
+```{r}
+final_wf <- finalize_workflow(lda_wf, best_params)
+final_fit_lda <- last_fit(final_wf, split = split_dat)
+tab_result <- collect_predictions(final_fit_lda)
+
+final_wf_extracted <- extract_workflow(final_fit_lda)
+tab_result <- final_wf_extracted |>  
+  predict(new_data = dat_test, type = "prob") |>  
+  bind_cols(dat_test)
+
+tab_result <- tab_result |> 
+  mutate(pred_class_adj = factor(ifelse(.pred_1 > 0.5, "1", "0"), levels = c("0", "1")))
+
+conf_mat_result <- conf_mat(tab_result, truth = stroke, estimate = pred_class_adj)
+conf_mat_result
+
+roc_data <- roc_curve(tab_result, truth = stroke, .pred_1, event_level = "second")
+autoplot(roc_data) + 
+  ggtitle("Courbe ROC : LDA") + 
+  theme_minimal()
+
+auc_value <- roc_auc(tab_result, truth = stroke, .pred_1, event_level = "second")
+
+print(auc_value)
+```
+
+### Récapitulatif
+```{r}
+VN <- conf_mat_result$table[1,1] 
+FN <- conf_mat_result$table[1,2]  
+FP <- conf_mat_result$table[2,1]  
+VP <- conf_mat_result$table[2,2]  
+
+precision  <- VP / (VP + FP)            
+sensitivity <- VP / (VP + FN)           
+specificity <- VN / (VN + FP)            
+fpr         <- 1 - specificity           
+fnr         <- 1 - sensitivity           
+accuracy    <- (VP + VN) / (VP + VN + FP + FN)
+fscore      <- 2*precision*sensitivity/ (precision + sensitivity)
+AUC   <- auc_value$.estimate                  
+
+df_summary <- tibble(
+  "Métrique" = c(
+    "Précision", 
+    "Sensibilité", 
+    "Spécificité", 
+    "Taux de faux positifs", 
+    "Taux de faux négatifs", 
+    "Accuracy", 
+    "F-score", 
+    "AUC"
+  ),
+  "Valeur (%)" = c(
+    round(100 * precision, 2),
+    round(100 * sensitivity, 2),
+    round(100 * specificity, 2),
+    round(100 * fpr, 2),
+    round(100 * fnr, 2),
+    round(100 * accuracy, 2),
+    round(100 * fscore, 2),
+    round(100 * AUC, 2)
+  )
+)
+
+df_summary |> 
+  kable( caption = "Récapitulatif des performances du modèle") |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                full_width = FALSE)
+
+```
+
+## LOGIT 
+
+```{r}
+set.seed(1)
+split_dat <- initial_split(data, prop = 2/3, strata = stroke)
+dat_train <- training(split_dat)
+dat_test  <- testing(split_dat)
+```
+
+### Recette
+
+```{r}
+logit_rec <- recipe(stroke ~ ., data = dat_train) |>  
+  step_mutate(smoking_status = as.character(smoking_status)) |>  
+  step_mutate(smoking_status = na_if(smoking_status, "unknown")) |>  
+  step_mutate(smoking_status = factor(smoking_status)) |>  
+  step_impute_bag(all_predictors()) |>  
+  step_dummy(all_nominal_predictors(), one_hot = FALSE) |>  
+  step_zv(all_predictors()) |>  
+  step_center(all_numeric_predictors()) |>  
+  step_scale(all_numeric_predictors()) |>  
+  step_smotenc(stroke, over_ratio = tune(), neighbors = tune())
+
+logit_spec <- logistic_reg() |>  
+  set_mode("classification") |>  
+  set_engine("glm")
+
+logit_wf <- workflow() |>  
+  add_recipe(logit_rec) |> 
+  add_model(logit_spec)
+```
+
+### Optimisation des hyperparamètres
+
+```{r}
+n_core <- detectCores(logical = TRUE)
+registerDoParallel(cores = n_core - 1)
+
+df_folds <- vfold_cv(dat_train, v = 5, strata = stroke)
+
+grid_vals <- crossing(
+  over_ratio = seq(0.1, 1, by = 0.1),
+  neighbors  = seq(3, 15, by = 2))
+
+
+tune_res_logit <- tune_grid(
+  logit_wf,
+  resamples = df_folds,
+  grid = grid_vals,
+  metrics = metric_set(
+  yardstick::f_meas, 
+  yardstick::roc_auc,
+  yardstick::accuracy,
+  yardstick::sensitivity, 
+  yardstick::specificity, 
+  yardstick::precision))
+
+autoplot(tune_res_logit)
+best_params_logit <- select_best(tune_res_logit, metric = "sensitivity")
+print(best_params_logit)
+
+autoplot(tune_res_logit, metric = "sensitivity")+
+  ggtitle("Optimisation des hyperparamètres")+theme_minimal()
+
+stopImplicitCluster()
+```
+
+### Résultats
+
+```{r}
+final_wf <- finalize_workflow(logit_wf, best_params_logit)
+final_fit_logit <- last_fit(final_wf, split = split_dat)
+tab_result <- collect_predictions(final_fit_logit)
+
+final_wf_extracted <- extract_workflow(final_fit_logit)
+tab_result <- final_wf_extracted |>  
+  predict(new_data = dat_test, type = "prob") |>  
+  bind_cols(dat_test)
+
+tab_result <- tab_result |> 
+  mutate(pred_class_adj = factor(ifelse(.pred_1 > 0.1, "1", "0"), levels = c("0", "1")))
+
+conf_mat_result <- conf_mat(tab_result, truth = stroke, estimate = pred_class_adj)
+conf_mat_result
+
+roc_data <- roc_curve(tab_result, truth = stroke, .pred_1, event_level = "second")
+autoplot(roc_data) + 
+  ggtitle("Courbe ROC : Logit") + 
+  theme_minimal()
+
+auc_value <- roc_auc(tab_result, truth = stroke, .pred_1, event_level = "second")
+print(auc_value)
+```
+
+
+### Coefficients du modèle
+```{python}
+tidy(final_wf_extracted) |>
+  arrange(desc(abs(estimate))) |>
+  kable(digits = 3, caption = "Coefficients du modèle LOGIT") |>
+  kable_styling(bootstrap_options = c("striped"))
+
+library(broom)
+library(broom)
+library(dplyr)
+library(knitr)
+
+
+coeffs_logit <- tidy(final_wf_extracted) |> 
+  dplyr::filter(term != "(Intercept)") |> 
+  dplyr::arrange(desc(abs(estimate))) |> 
+  dplyr::mutate(
+    Coefficient = round(estimate, 3),
+    `p-value` = formatC(p.value, format = "e", digits = 2)
+  ) |> 
+  dplyr::rename(Variable = term) |> 
+  dplyr::select(Variable, Coefficient, `p-value`) |> 
+  as.data.frame()
+
+kable(coeffs_logit, caption = "Coefficients du modèle LOGIT", align = "lc")
+```
+
+## KNN
+
+### recette 
+
+```{r}
+set.seed(1)
+
+split_dat <- initial_split(data, prop = 2/3, strata = stroke)
+dat_train <- training(split_dat)
+dat_test  <- testing(split_dat)
+```
+
+```{r}
+knn_rec <- recipe(stroke ~ ., data = dat_train) |>
+  step_mutate(smoking_status = as.character(smoking_status)) |>  
+  step_mutate(smoking_status = na_if(smoking_status, "unknown")) |>  
+  step_mutate(smoking_status = factor(smoking_status)) |>  
+  step_impute_bag(all_predictors()) |>  
+  step_dummy(all_nominal_predictors()) |>  
+  step_zv(all_predictors()) |>  
+  step_center(all_numeric_predictors()) |>  
+  step_scale(all_numeric_predictors()) |>  
+  step_smotenc(stroke, over_ratio = tune(), neighbors = tune())
+
+knn_mod <- nearest_neighbor() |> 
+  set_mode("classification") |> 
+  set_engine("kknn")
+
+knn_wf <- workflow() |> 
+  add_recipe(knn_rec) |> 
+  add_model(knn_mod)
+```
+
+
+
+### Optimisations des hyperparametres 
+
+```{r}
+
+n_core <- detectCores(logical = TRUE)
+registerDoParallel(cores = n_core - 1)
+
+df_folds <- vfold_cv(dat_train, v = 5, strata = stroke)
+
+grid_vals <- expand.grid(
+  over_ratio = seq(0.1, 1, by = 0.1),
+  neighbors  = seq(3, 15, by = 2))
+
+
+tune_res_knn <- tune_grid(
+  knn_wf,
+  resamples = df_folds,
+  grid = grid_vals,
+  metrics = metric_set(
+  yardstick::f_meas, 
+  yardstick::roc_auc,
+  yardstick::accuracy,
+  yardstick::sensitivity, 
+  yardstick::specificity, 
+  yardstick::precision))
+
+
+autoplot(tune_res_knn)
+knn_best <- select_best(tune_res_knn, metric = "precision")
+knn_best
+
+autoplot(tune_res_knn, metric = "precision") +
+  ggtitle("Optimisations des hyperparamètre") +
+  theme_minimal()
+
+stopImplicitCluster()
+```
+
+### Résultats 
+
+```{r}
+final_knn_wf <- finalize_workflow(knn_wf, knn_best)
+
+final_fit_knn <- fit(final_knn_wf, data = dat_train)
+
+tab_result <- predict(final_fit_knn, new_data = dat_test, type = "prob") |> 
+  bind_cols(predict(final_fit_knn, new_data = dat_test, type = "class"), dat_test)
+
+tab_result <- tab_result |> 
+  mutate(pred_class_adj = factor(ifelse(.pred_1 > 0.1, "1", "0"), levels = c("0", "1")))
+
+
+conf_mat_result <- conf_mat(tab_result, truth = stroke, estimate = pred_class_adj)
+conf_mat_result
+
+
+roc_data <- roc_curve(tab_result, truth = stroke, .pred_1, event_level = "second")
+
+autoplot(roc_data) + 
+  ggtitle("Courbe ROC du modèle KNN") + 
+  theme_minimal()
+
+
+auc_value <- roc_auc(tab_result, truth = stroke, .pred_1, event_level = "second")
+print(auc_value)
+
+```
+
+### Récapitulatif
+
+```{r}
+VN <- conf_mat_result$table[1,1]
+FN <- conf_mat_result$table[1,2]
+FP <- conf_mat_result$table[2,1]
+VP <- conf_mat_result$table[2,2]
+
+precision  <- VP / (VP + FP)            
+sensitivity <- VP / (VP + FN)           
+specificity <- VN / (VN + FP)            
+fpr         <- 1 - specificity           
+fnr         <- 1 - sensitivity           
+accuracy    <- (VP + VN) / (VP + VN + FP + FN)
+fscore      <- 2*precision*sensitivity/ (precision + sensitivity)
+AUC   <- auc_value$.estimate                  
+
+df_summary <- tibble(
+  "Métrique" = c(
+    "Précision", 
+    "Sensibilité", 
+    "Spécificité", 
+    "Taux de faux positifs", 
+    "Taux de faux négatifs", 
+    "Accuracy", 
+    "F-score", 
+    "AUC"
+  ),
+  "Valeur (%)" = c(
+    round(100 * precision, 2),
+    round(100 * sensitivity, 2),
+    round(100 * specificity, 2),
+    round(100 * fpr, 2),
+    round(100 * fnr, 2),
+    round(100 * accuracy, 2),
+    round(100 * fscore, 2),
+    round(100 * AUC, 2)
+  )
+)
+
+df_summary |> 
+  kable("html", caption = "Récapitulatif des performances du modèle") |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                full_width = FALSE)
+
+```
+
+
+## ARBRE CART 
+
+### Recette 
+
+```{r}
+set.seed(1)
+split_dat <- initial_split(data, prop = 2/3, strata = stroke)
+dat_train <- training(split_dat)
+dat_test  <- testing(split_dat)
+
+```
+
+```{r}
+cart_rec <- recipe(stroke ~ ., data = dat_train) |>
+  step_mutate(smoking_status = as.character(smoking_status)) |>  
+  step_mutate(smoking_status = na_if(smoking_status, "unknown")) |>  
+  step_mutate(smoking_status = factor(smoking_status)) |>  
+  step_impute_bag(all_predictors()) |>  
+  step_zv(all_predictors()) |>  
+  step_corr(all_numeric_predictors(), threshold = 0.9, method = "spearman") |>  
+  step_smotenc(stroke, over_ratio = tune(), neighbors = tune())
+
+cart_spec <- decision_tree(cost_complexity = tune()) |>  
+  set_mode("classification") |>  
+  set_engine("rpart")
+
+
+cart_wf <- workflow() |>  
+  add_recipe(cart_rec) |> 
+  add_model(cart_spec)
+```
+
+### Optimisations des hyperparametres 
+
+```{r, warning=FALSE}
+n_core <- detectCores(logical = TRUE)
+registerDoParallel(cores = n_core - 1)
+
+df_folds <- vfold_cv(dat_train, v = 5, strata = stroke)
+
+grid_vals <- expand.grid(
+  over_ratio = seq(0.1, 1, by = 0.1),
+  neighbors  = seq(3, 15, by = 2),      
+  cost_complexity = 10^seq(-5, -2, length.out = 7))
+
+tune_res_cart <- tune_grid(
+  cart_wf,
+  resamples = df_folds,
+  grid = grid_vals,
+  metrics = metric_set(
+  yardstick::f_meas, 
+  yardstick::roc_auc,
+  yardstick::accuracy,
+  yardstick::sensitivity, 
+  yardstick::specificity, 
+  yardstick::precision))
+
+autoplot(tune_res_cart)
+
+best_params_cart <- select_best(tune_res_cart, metric = "roc_auc")
+print(best_params_cart)
+
+autoplot(tune_res_cart, metric = "roc_auc") +
+  ggtitle("Optimisations des hyperparamètres") +
+  theme_minimal() 
+  
+stopImplicitCluster()
+```
+
+### Résultats 
+
+```{r}
+final_cart_wf <- finalize_workflow(cart_wf, best_params_cart)
+final_fit_cart <- last_fit(final_cart_wf, split = split_dat)
+tab_result_cart <- collect_predictions(final_fit_cart)
+
+final_wf_extracted <- extract_workflow(final_fit_cart)
+
+tab_result_cart <- final_wf_extracted |>  
+  predict(new_data = dat_test, type = "prob") |>  
+  bind_cols(dat_test)
+
+tab_result_cart <- tab_result_cart |> 
+  mutate(pred_class_adj = factor(ifelse(.pred_1 > 0.1, "1", "0"), levels = c("0", "1")))
+
+
+conf_mat_cart <- conf_mat(tab_result_cart, truth = stroke, estimate = pred_class_adj)
+conf_mat_cart
+
+
+roc_data_cart <- roc_curve(tab_result_cart, truth = stroke, .pred_1, event_level = "second")
+autoplot(roc_data_cart) + 
+  ggtitle("Courbe ROC : Arbre CART") + 
+  theme_minimal()
+
+
+auc_value_cart <- roc_auc(tab_result_cart, truth = stroke, .pred_1, event_level = "second")
+print(auc_value_cart)
+```
+
+
+#### Arbre Cart 
+
+```{r}
+final_fit_cart |>
+  extract_fit_engine() |>
+  rpart.plot::prp(
+    type = 2, extra = 1, 
+    roundint = FALSE,varlen = 10,
+    main = "Arbre de Décision CART ",
+    box.palette = "Blues",
+    shadow.col = "gray",
+    split.cex = 1.1,    
+    split.font = 2
+  )
+```
+
+### Récapitulatif 
+
+```{r}
+VN <- conf_mat_cart$table[1,1]
+FN <- conf_mat_cart$table[1,2]
+FP <- conf_mat_cart$table[2,1]
+VP <- conf_mat_cart$table[2,2]
+
+precision  <- VP / (VP + FP)            
+sensitivity <- VP / (VP + FN)           
+specificity <- VN / (VN + FP)            
+fpr         <- 1 - specificity           
+fnr         <- 1 - sensitivity           
+accuracy    <- (VP + VN) / (VP + VN + FP + FN)
+fscore      <- 2*precision*sensitivity/ (precision + sensitivity)
+AUC   <- auc_value_cart$.estimate                  
+
+df_summary <- tibble(
+  "Métrique" = c(
+    "Précision", 
+    "Sensibilité", 
+    "Spécificité", 
+    "Taux de faux positifs", 
+    "Taux de faux négatifs", 
+    "Accuracy", 
+    "F-score", 
+    "AUC"
+  ),
+  "Valeur (%)" = c(
+    round(100 * precision, 2),
+    round(100 * sensitivity, 2),
+    round(100 * specificity, 2),
+    round(100 * fpr, 2),
+    round(100 * fnr, 2),
+    round(100 * accuracy, 2),
+    round(100 * fscore, 2),
+    round(100 * AUC, 2)))
+
+df_summary |> 
+  kable("html", caption = "Récapitulatif des performances du modèle") |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                full_width = FALSE)
+```
+
+## SVM Linéaire 
+
+### Recette
+
+
+```{r}
+set.seed(1)
+
+split_dat <- initial_split(data, prop = 2/3, strata = stroke)
+dat_train <- training(split_dat)
+dat_test  <- testing(split_dat)
+dat_train <- dat_train |>  
+  mutate(stroke = factor(stroke, levels = c("0", "1")))
+
+dat_test <- dat_test |>  
+  mutate(stroke = factor(stroke, levels = c("0", "1")))
+```
+
+```{r}
+svm_linear_rec <- recipe(stroke ~ ., data = dat_train) |> 
+  step_mutate(smoking_status = as.character(smoking_status)) |>
+  step_mutate(smoking_status = na_if(smoking_status, "unknown")) |>
+  step_mutate(smoking_status = factor(smoking_status)) |>
+  step_impute_bag(all_predictors()) |>
+  step_dummy(all_nominal_predictors()) |> 
+  step_zv(all_predictors()) |> 
+  step_center(all_numeric_predictors()) |> 
+  step_scale(all_numeric_predictors()) |> 
+  step_smotenc(stroke, over_ratio = tune(), neighbors = tune())
+
+svm_linear_mod <- svm_linear(cost= tune()) |> 
+  set_mode("classification") |> 
+  set_engine("kernlab")
+
+svm_linear_wf <- workflow() |> 
+  add_recipe(svm_linear_rec) |> 
+  add_model(svm_linear_mod)
+```
+
+### Optimisations des hyperparametres
+
+```{r}
+n_core <- parallel::detectCores(logical = TRUE)
+registerDoParallel(cores = n_core -1) 
+
+df_folds <- vfold_cv(dat_train, v = 5, strata = stroke)
+
+grid_vals <- expand.grid(
+  neighbors  = seq(1, 15, by = 2),
+   over_ratio = seq(0.2, 1, by = 0.1),
+  cost = 2^seq(-5, 5, by = 1))
+
+
+tune_res_svm <- tune_grid(
+  svm_linear_wf,
+  resamples = df_folds,
+  grid = grid_vals,
+  metrics = metric_set(
+  yardstick::f_meas, 
+  yardstick::roc_auc,
+  yardstick::accuracy,
+  yardstick::sensitivity, 
+  yardstick::specificity
+))
+
+autoplot(tune_res_svm)
+
+stopImplicitCluster()
+```
+
+### Résultats 
+
+```{r}
+best_params <- select_best(tune_res_svm, metric = "roc_auc")
+final_svm_linear_wf <- finalize_workflow(svm_linear_wf, best_params)
+  
+final_fit_svmlin <- fit(final_svm_linear_wf, data = dat_train)
+
+tab_result <- predict(final_fit_svmlin, new_data = dat_test, type = "prob") |> 
+    bind_cols(dat_test)
+
+tab_result <- tab_result |> 
+    mutate(pred_class_adj = factor(ifelse(.pred_1 > 0.3, "1", "0"), levels = c("0", "1")))
+
+conf_mat_result <- conf_mat(tab_result, truth = stroke, estimate = pred_class_adj)
+print(conf_mat_result)
+
+auc_value <- roc_auc(tab_result, truth = stroke, .pred_1, event_level = "second")
+
+  
+roc_data_cart <- roc_curve(tab_result, truth = stroke, .pred_1, event_level = "second")
+autoplot(roc_data_cart) + 
+  ggtitle("Courbe ROC : SVM Linéaire") + 
+  theme_minimal()
+
+  VN <- conf_mat_result$table[1,1]
+  FN <- conf_mat_result$table[1,2]
+  FP <- conf_mat_result$table[2,1]
+  VP <- conf_mat_result$table[2,2]
+
+  precision  <- VP / (VP + FP)            
+  sensitivity <- VP / (VP + FN)           
+  specificity <- VN / (VN + FP)            
+  fpr         <- 1 - specificity           
+  fnr         <- 1 - sensitivity           
+  accuracy    <- (VP + VN) / (VP + VN + FP + FN)
+  fscore      <- 2 * precision * sensitivity / (precision + sensitivity)
+  auc_value_valeur <- auc_value$.estimate	                  
+
+  df_summary <- tibble(
+    "Métrique" = c(
+      "Précision", 
+      "Sensibilité", 
+      "Spécificité", 
+      "Taux de faux positifs", 
+      "Taux de faux négatifs", 
+      "Accuracy", 
+      "F-score", 
+      "AUC"
+    ),
+    "Valeur (%)" = c(
+      round(100 * precision, 2),
+      round(100 * sensitivity, 2),
+      round(100 * specificity, 2),
+      round(100 * fpr, 2),
+      round(100 * fnr, 2),
+      round(100 * accuracy, 2),
+      round(100 * fscore, 2),
+      round(100 * auc_value_valeur, 2)
+    )
+  )
+  
+df_summary |> 
+  kable("html", caption = "Récapitulatif des performances du modèle") |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                full_width = FALSE)
+
+```
+
+
+## SVM Radial
+### Recette
+
+```{r}
+set.seed(1)
+split_dat <- initial_split(data, prop = 2/3, strata = stroke)
+dat_train <- training(split_dat)
+dat_test  <- testing(split_dat)
+dat_train <- dat_train |>  
+  mutate(stroke = factor(stroke, levels = c("0", "1")))
+
+dat_test <- dat_test |>  
+  mutate(stroke = factor(stroke, levels = c("0", "1")))
+```
+
+```{r}
+svm_rad_rec <- recipe(stroke ~ ., data = dat_train) |> 
+  step_mutate(smoking_status = as.character(smoking_status)) |>
+  step_mutate(smoking_status = na_if(smoking_status, "unknown")) |>
+  step_mutate(smoking_status = factor(smoking_status)) |>
+  step_impute_bag(all_predictors()) |>
+  step_dummy(all_nominal_predictors()) |> 
+  step_zv(all_predictors()) |> 
+  step_center(all_numeric_predictors()) |> 
+  step_scale(all_numeric_predictors()) |> 
+  step_smotenc(stroke, over_ratio = tune(), neighbors = tune()) |> 
+  step_zv(all_predictors())
+
+svm_rad_mod <- svm_rbf(cost = tune(),rbf_sigma = tune()) |>
+  set_mode("classification") |>
+  set_engine("kernlab")
+
+svm_rad_wf <- workflow() |> 
+  add_recipe(svm_rad_rec) |> 
+  add_model(svm_rad_mod)
+```
+
+### Optimisations des hyperparametres
+
+```{r}
+n_core <- parallel::detectCores(logical = TRUE)
+registerDoParallel(cores = n_core -1) 
+
+df_folds <- vfold_cv(dat_train, v = 5, strata = stroke)
+
+grid_vals <- expand.grid(
+  neighbors = seq(1, 15, by = 2),
+  over_ratio = seq(0.2, 1, by = 0.1),
+  cost = 2^seq(-5, 5, by = 1),
+  rbf_sigma= seq(0,1, by=0.3))
+
+
+tune_res_svm_rad <- tune_grid(
+  svm_rad_wf,
+  resamples = df_folds,
+  grid = grid_vals,
+  metrics = metric_set(
+  yardstick::f_meas, 
+  yardstick::roc_auc,
+  yardstick::accuracy,
+  yardstick::sensitivity, 
+  yardstick::specificity))
+
+stopImplicitCluster()
+```
+
+### Résultats 
+
+
+```{r}
+best_params <- select_best(tune_res_svm_rad, metric = "roc_auc")
+best_params
+
+final_svm_linear_wf <- finalize_workflow(svm_rad_wf, best_params)
+  
+final_fit_svmrad <- fit(final_svm_linear_wf, data = dat_train)
+  
+tab_result <- predict(final_fit_svmrad, new_data = dat_test, type = "prob") |> 
+    bind_cols(dat_test)
+  
+tab_result <- tab_result |> 
+    mutate(pred_class_adj = factor(ifelse(.pred_1 > 0.1, "1", "0"), levels = c("0", "1")))
+  
+conf_mat_result <- conf_mat(tab_result, truth = stroke, estimate = pred_class_adj)
+  print(conf_mat_result)
+  
+roc_curve_data <- roc_curve(tab_result, truth = stroke, .pred_0)  
+  
+autoplot(roc_curve_data) + 
+    ggtitle("Courbe ROC : SVM Radial") + 
+    theme_minimal()
+
+auc_value <- roc_auc(tab_result, truth = stroke, .pred_1, event_level = "second")
+print(auc_value)
+
+  VN <- conf_mat_result$table[1,1]
+  FN <- conf_mat_result$table[1,2]
+  FP <- conf_mat_result$table[2,1]
+  VP <- conf_mat_result$table[2,2]
+  
+
+  precision  <- VP / (VP + FP)            
+  sensitivity <- VP / (VP + FN)           
+  specificity <- VN / (VN + FP)            
+  fpr         <- 1 - specificity           
+  fnr         <- 1 - sensitivity           
+  accuracy    <- (VP + VN) / (VP + VN + FP + FN)
+  fscore      <- 2 * precision * sensitivity / (precision + sensitivity)
+  auc_value_valeur <- auc_value$.estimate	                  
+  
+  df_summary <- tibble(
+    "Métrique" = c(
+      "Précision", 
+      "Sensibilité", 
+      "Spécificité", 
+      "Taux de faux positifs", 
+      "Taux de faux négatifs", 
+      "Accuracy", 
+      "F-score", 
+      "AUC"
+    ),
+    "Valeur (%)" = c(
+      round(100 * precision, 2),
+      round(100 * sensitivity, 2),
+      round(100 * specificity, 2),
+      round(100 * fpr, 2),
+      round(100 * fnr, 2),
+      round(100 * accuracy, 2),
+      round(100 * fscore, 2),
+      round(100 * auc_value_valeur, 2)
+    )
+  )
+  
+df_summary |> 
+  kable("html", caption = "Récapitulatif des performances du modèle") |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                full_width = FALSE)
+
+```
+
+
+## Random Forest 
+
+### Recette & Optimisations des hyperparametres
+
+
+```{r}
+set.seed(1)
+split_dat <- initial_split(data, prop = 2/3, strata = stroke)
+dat_train <- training(split_dat)
+dat_test  <- testing(split_dat)
+dat_train <- dat_train |>  
+  mutate(stroke = factor(stroke, levels = c("0", "1")))
+
+dat_test <- dat_test |>  
+  mutate(stroke = factor(stroke, levels = c("0", "1")))
+```
+
+
+```{r}
+n_core <- detectCores(logical = TRUE)
+registerDoParallel(cores = n_core - 1)
+tuned_rf <- rand_forest(mtry = tune(), 
+                        tree=tune(), 
+                        min_n =tune()) |> 
+  set_engine("ranger", 
+             importance = "impurity", 
+             class.weights = c(0.01, 0.99)) |> 
+  set_mode("classification")
+
+rec_rf <- recipe(stroke ~ ., data = dat_train) |> 
+ step_mutate(smoking_status = as.character(smoking_status)) |>
+  step_mutate(smoking_status = na_if(smoking_status, "unknown")) |>
+  step_mutate(smoking_status = factor(smoking_status)) |>
+  step_impute_bag(all_predictors()) |>
+  step_dummy(all_nominal_predictors()) |> 
+  step_smote(stroke, over_ratio = tune(), neighbors = tune()) 
+
+wf_rf <- workflow() |> 
+  add_model(tuned_rf) |> 
+  add_recipe(rec_rf)
+
+grid_rf <- grid_space_filling(
+  mtry(range = c(2, 8)), 
+  min_n(range = c(2, 25)), 
+  trees(range = c(50, 500)),  
+  over_ratio(range =c(0,1)),
+  neighbors(range = c(1,3)))
+
+cv_folds <- vfold_cv(dat_train, v = 5, strata = stroke)
+
+tuned_results <- tune_grid(
+  wf_rf, 
+  resamples = cv_folds,
+  grid = grid_rf,
+  metrics = metric_set(
+  yardstick::f_meas, 
+  yardstick::roc_auc,
+  yardstick::accuracy,
+  yardstick::sensitivity, 
+  yardstick::specificity)
+)
+
+stopImplicitCluster()
+```
+
+### Résultats 
+
+```{r}
+best_params <- select_best(tuned_results, metric="sensitivity")
+print(best_params)
+
+final_rf <- finalize_workflow(wf_rf, best_params)
+set.seed(1)
+
+final_fit_rf <- last_fit(final_rf, split_dat)
+
+final_metrics <- collect_metrics(final_fit_rf)
+print(final_metrics)
+
+final_predictions <- collect_predictions(final_fit_rf)
+
+final_predictions <- final_predictions |> 
+  mutate(.pred_class = factor(ifelse(.pred_1 > 0.05, "1", "0"), levels = c("0", "1")))  
+
+conf_mat <- conf_mat(final_predictions, truth = stroke, estimate = .pred_class)
+print(conf_mat)
+
+roc_curve_data <- roc_curve(final_predictions, truth = stroke, .pred_0) 
+autoplot(roc_curve_data) + 
+  ggtitle("Courbe ROC RandomForest") + 
+  theme_minimal()
+
+auc_value <- roc_auc(final_predictions, truth = stroke, .pred_1, event_level = "second")
+print(auc_value)
+
+autoplot(tuned_results)
+```
+
+
+```{r}
+rf_model <- extract_fit_engine(final_fit_rf)
+
+importance_df <- as.data.frame(rf_model$variable.importance) |>
+  tibble::rownames_to_column("Variable") |>
+  rename(Importance = `rf_model$variable.importance`) |>
+  arrange(desc(Importance))
+
+importance_df |>
+  top_n(10, Importance) |>
+  ggplot(aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_col(fill = "#3182bd") +
+  coord_flip() +
+  labs(
+    title = "Importance des variables : Random Forest",
+    x = "Variable",
+    y = "Importance") +
+  theme_minimal()
+
+```
+
+
+
+```{r}
+  VN <- conf_mat$table[1,1]
+  FN <- conf_mat$table[1,2]
+  FP <- conf_mat$table[2,1]
+  VP <- conf_mat$table[2,2]
+
+precision  <- VP / (VP + FP)            
+sensitivity <- VP / (VP + FN)           
+specificity <- VN / (VN + FP)            
+fpr         <- 1 - specificity           
+fnr         <- 1 - sensitivity           
+accuracy    <- (VP + VN) / (VP + VN + FP + FN)
+fscore      <- 2 * precision * sensitivity / (precision + sensitivity)
+auc_value   <- auc_value$.estimate	                    
+
+df_summary <- tibble(
+  "Métrique" = c(
+    "Précision", 
+    "Sensibilité", 
+    "Spécificité", 
+    "Taux de faux positifs", 
+    "Taux de faux négatifs", 
+    "Accuracy", 
+    "F-score", 
+    "AUC"
+  ),
+  "Valeur (%)" = c(
+    round(100 * precision, 2),
+    round(100 * sensitivity, 2),
+    round(100 * specificity, 2),
+    round(100 * fpr, 2),
+    round(100 * fnr, 2),
+    round(100 * accuracy, 2),
+    round(100 * fscore, 2),
+    round(100 * auc_value, 2)
+  )
+)
+
+df_summary |> 
+  kable("html", caption = "Récapitulatif des performances du modèle") |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                full_width = FALSE)
+```
+
+
+## Boosting 
+
+### Recette & Optimisations des hyperparametres
+
+```{r}
+set.seed(1)
+split_dat <- initial_split(data, prop = 2/3, strata = stroke)
+dat_train <- training(split_dat)
+dat_test  <- testing(split_dat)
+dat_train <- dat_train |>  
+  mutate(stroke = factor(stroke, levels = c("0", "1")))
+
+dat_test <- dat_test |>  
+  mutate(stroke = factor(stroke, levels = c("0", "1")))
+```
+
+```{r}
+n_core <- detectCores(logical = TRUE)
+registerDoParallel(cores = n_core - 1)
+
+boost_spec <- boost_tree(trees = tune(),
+                         min_n=tune(),
+                         mtry=tune(),
+                         learn_rate = tune(), 
+                         tree_depth=tune()) |> 
+  set_engine("xgboost") |> 
+  set_mode("classification")
+
+rec_for_boost <- recipe(stroke ~ ., data = dat_train) |> 
+ step_mutate(smoking_status = as.character(smoking_status)) |>
+  step_mutate(smoking_status = na_if(smoking_status, "unknown")) |>
+  step_mutate(smoking_status = factor(smoking_status)) |>
+  step_impute_bag(all_predictors()) |>
+  step_dummy(all_nominal_predictors()) |> 
+  step_smote(stroke, over_ratio = tune(), neighbors = tune()) 
+
+
+grid_boost <- grid_space_filling(
+  trees(range = c(50, 500)), 
+  min_n(),                   
+  mtry(range = c(2, 10)),
+  learn_rate(range = c(0.001, 0.2)),  
+  tree_depth(range = c(2, 15)),
+  over_ratio(range =c(0.1, 1)), 
+  neighbors(range = c(3, 9))
+  
+)
+
+print(grid_boost)
+
+wf_boost <- workflow() |> 
+  add_model(boost_spec) |> 
+  add_recipe(rec_for_boost)
+
+cv_folds <- vfold_cv(dat_train, v = 5, strata = stroke)
+
+tuned_results <- tune_grid(
+  wf_boost, 
+  resamples = cv_folds, 
+  grid = grid_boost,
+  metrics = metric_set(
+  yardstick::f_meas, 
+  yardstick::roc_auc,
+  yardstick::accuracy,
+  yardstick::sensitivity, 
+  yardstick::specificity))
+
+
+stopImplicitCluster()
+```
+
+### Résultats 
+
+
+```{r}
+best_params <- select_best(tuned_results, metric="roc_auc")
+print(best_params)
+
+final_boost <- finalize_workflow(wf_boost, best_params)
+set.seed(1)
+
+final_fit_boost <- last_fit(final_boost, split_dat)
+
+final_metrics <- collect_metrics(final_fit_boost)
+print(final_metrics)
+
+final_predictions <- collect_predictions(final_fit_boost)
+
+final_predictions <- final_predictions |> 
+  mutate(.pred_class = factor(ifelse(.pred_1 > 0.05, "1", "0"), levels = c("0", "1")))  
+
+conf_mat <- conf_mat(final_predictions, truth = stroke, estimate = .pred_class)
+print(conf_mat)
+
+roc_curve_data <- roc_curve(final_predictions, truth = stroke, .pred_0)  
+autoplot(roc_curve_data) + 
+  ggtitle("Courbe ROC : BOOSTING") + 
+  theme_minimal()
+
+auc_value <- roc_auc(final_predictions, truth = stroke, .pred_1, event_level = "second")
+print(auc_value)
+
+autoplot(tuned_results)
+```
+
+
+```{r}
+boost_model <- extract_fit_engine(final_fit_boost)
+
+vip(boost_model, num_features = 10, geom = "col", aesthetics = list(fill = "#2b8cbe")) +
+  labs(
+    title = "Importance des variables : Boosting",
+    x = "Variable",
+    y = "Importance") +
+  theme_minimal()
+
+```
+
+
+```{r}
+  VN <- conf_mat$table[1,1]
+  FN <- conf_mat$table[1,2]
+  FP <- conf_mat$table[2,1]
+  VP <- conf_mat$table[2,2]
+  
+precision  <- VP / (VP + FP)            
+sensitivity <- VP / (VP + FN)           
+specificity <- VN / (VN + FP)            
+fpr         <- 1 - specificity           
+fnr         <- 1 - sensitivity           
+accuracy    <- (VP + VN) / (VP + VN + FP + FN)
+fscore      <- 2 * precision * sensitivity / (precision + sensitivity)
+auc_value   <- auc_value$.estimate	                    
+
+df_summary <- tibble(
+  "Métrique" = c(
+    "Précision", 
+    "Sensibilité", 
+    "Spécificité", 
+    "Taux de faux positifs", 
+    "Taux de faux négatifs", 
+    "Accuracy", 
+    "F-score", 
+    "AUC"
+  ),
+  "Valeur (%)" = c(
+    round(100 * precision, 2),
+    round(100 * sensitivity, 2),
+    round(100 * specificity, 2),
+    round(100 * fpr, 2),
+    round(100 * fnr, 2),
+    round(100 * accuracy, 2),
+    round(100 * fscore, 2),
+    round(100 * auc_value, 2)
+  )
+)
+
+df_summary |> 
+  kable("html", caption = "Récapitulatif des performances du modèle") |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                full_width = FALSE)
+```
+
+# Modele retenu
+
+```{r}
+get_roc_last_fit <- function(fit_obj, model_name) {
+  collect_predictions(fit_obj) |>
+    roc_curve(truth = stroke, .pred_1) |>
+    mutate(modèle = model_name)
+}
+
+get_roc_manual_fit <- function(fit_obj, model_name) {
+  predict(fit_obj, dat_test, type = "prob") |>
+    bind_cols(dat_test) |>
+    roc_curve(truth = stroke, .pred_1) |>
+    mutate(modèle = model_name)
+}
+
+roc_lda   <- get_roc_last_fit(final_fit_lda, "LDA")
+roc_logit <- get_roc_last_fit(final_fit_logit, "Logit")
+roc_cart  <- get_roc_last_fit(final_fit_cart, "CART")
+roc_rf    <- get_roc_last_fit(final_fit_rf, "Random Forest")
+roc_boost <- get_roc_last_fit(final_fit_boost, "Boosting")
+
+roc_knn     <- get_roc_manual_fit(final_fit_knn, "KNN")
+roc_svmlin  <- get_roc_manual_fit(final_fit_svmlin, "SVM linéaire")
+roc_svmrad  <- get_roc_manual_fit(final_fit_svmrad, "SVM radial")
+
+
+roc_all <- bind_rows(
+  roc_lda, roc_logit, roc_cart, roc_rf, roc_boost,
+  roc_knn, roc_svmlin, roc_svmrad
+)
+
+ggplot(roc_all, aes(x = specificity, y = 1 - sensitivity, color = modèle)) +
+  geom_line(linewidth = 0.5) +
+  geom_abline(linetype = "dashed", slope = 1, intercept = 0, color = "gray") +
+  coord_equal() +
+  labs(
+  title = "Courbes ROC des différents modèles",
+  x = "1 - Spécificité",
+  y = "Sensibilité")+
+  theme_minimal()
+
+
+
+```
+
