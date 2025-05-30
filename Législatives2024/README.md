@@ -75,7 +75,7 @@ Libre d’utilisation, de consultation et de réutilisation à des fins non comm
 
 ## 📌 Aperçu
 
-![Aperçu](Elections-Législative_final.pdf)
+![Aperçu](Elections-Législatives_final.pdf)
 
 ---
 
