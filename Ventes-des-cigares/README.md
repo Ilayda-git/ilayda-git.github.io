@@ -1,9 +1,58 @@
-## Micro-économétriques
-- **Quels sont les déterminants des ventes de cigares et comment les caractéristiques économiques, démographiques et les variations temporelles influencent-elles ces ventes ?**
-- lien : https://ilayda-git.github.io/Ventes-des-cigares/Ventes-Cigares.html
+# Économétrie – Analyse des ventes de cigares
 
-*L’objectif principal est de comprendre les principaux facteurs influençant les ventes de cigares et d'évaluer l'importance relative de chacun. 
-Cette analyse permettra de mieux appréhender les comportements de consommation, les impacts des politiques tarifaires, et les dynamiques économiques et démographiques à travers les régions et les années.
-Pour répondre à cette question, nous utilisons la base de données *cigar* et appliquons plusieurs modèles économétriques, notamment le modèle poolé, le modèle à effets fixes et le modèle à effets aléatoires. 
-Cette approche méthodologique nous permettra de mettre en évidence les contributions respectives des facteurs économiques (prix, taxes, revenus), des caractéristiques démographiques (population) et des tendances temporelles sur les ventes de cigares.*
+**Auteures :** Imane Lemkhayer · Ilayda Yilmaz · Hafsa Mousalli
 
+---
+
+## Objectif
+
+Ce projet a pour objectif d’identifier les principaux déterminants des ventes de cigares aux États-Unis à partir de données de panel.  
+L’étude mobilise différents modèles économétriques afin de mesurer l’influence des facteurs économiques, démographiques et temporels.
+
+---
+
+## Données
+
+- **Source** : base `Cigar` du package `plm`
+- **Période** : 1963 à 1992
+- **Unités** : 46 États
+- **Variables clés** :
+  - `sales` : ventes de cigares (en millions de paquets)
+  - `price`, `cpi`, `ndi` : variables économiques
+  - `pop`, `pop16`, `pimin` : variables démographiques
+  - `state`, `year` : identifiants de panel
+
+---
+
+## Méthodologie
+
+Trois approches économétriques sont comparées :
+
+- **Modèle poolé (OLS)**
+- **Modèle à effets fixes**
+- **Modèle à effets aléatoires**
+
+### Tests effectués
+
+- **Hausman** : choix entre effets fixes et aléatoires
+- **Fisher** : présence d’effets individuels
+- **Breusch–Pagan** : comparaison poolé vs effets aléatoires
+
+---
+
+## Résultats
+
+- Le **modèle à effets fixes** est statistiquement préféré.
+- Les variables **prix**, **revenu disponible (NDI)** et **part des consommateurs (pimin)** ont un impact significatif sur les ventes.
+- Le **prix** a un effet négatif, traduisant une sensibilité au coût.
+- Le modèle à effets fixes explique **44 % de la variance**, contre 35 % pour les effets aléatoires et 24 % pour le modèle poolé.
+
+---
+
+
+## Technologies utilisées
+
+- R, RMarkdown  
+- Packages : `plm`, `dplyr`, `ggplot2`, `stargazer`, `data.table`
+
+---
