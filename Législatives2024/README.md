@@ -71,11 +71,4 @@ Ce projet utilise R avec les packages suivants :
 Projet académique à but pédagogique.  
 Libre d’utilisation, de consultation et de réutilisation à des fins non commerciales.
 
----
-
-## 📌 Aperçu
-
-![Aperçu](Elections-Législatives_final.pdf)
-
----
 
