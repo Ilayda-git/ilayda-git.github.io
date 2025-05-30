@@ -1,8 +1,8 @@
-#**🗳️ Élections législatives 2024 - Tour 1**
+# **🗳️ Élections législatives 2024 - Tour 1**
 
 Analyse statistique des comportements électoraux régionaux en France
 
-#📌 Description du projet
+# 📌 Description du projet
 
 Ce projet vise à explorer les dynamiques politiques régionales lors du premier tour des élections législatives françaises de 2024, à travers une approche statistique rigoureuse. Il s’appuie sur les données officielles des résultats électoraux par région et applique plusieurs méthodes d’analyse de données, notamment :
 
@@ -11,19 +11,20 @@ ACM (Analyse des Correspondances Multiples)
 Clustering (classification hiérarchique et par consolidation)
 L’objectif est de mettre en lumière les spécificités régionales, de repérer des regroupements politiques cohérents, et de comprendre les différences de comportements électoraux entre la métropole et l’Outre-mer.
 
-#👩‍💻 Réalisé par
+# 👩‍💻 Réalisé par
 
 Hafsa MOUSALLI
 Imane LEMKHAYER
 Ilayda YILMAZ
-📁 Contenu du dépôt
+
+# 📁 Contenu du dépôt
 
 ElectionLegislative-24.Rmd : Rapport complet en R Markdown avec visualisations et analyses détaillées.
 resultats-definitifs-par-regions.csv : Données brutes issues d’OpenDataUniversity.
 resultat_combiné_région_1.csv : Base transformée, regroupant les partis politiques en grandes familles.
 ElectionLegislative-24.pdf : Version PDF générée du rapport (optionnelle à inclure si demandée).
 
-#📊 Méthodologie
+# 📊 Méthodologie
 
 Préparation des données
 Nettoyage des fichiers bruts
