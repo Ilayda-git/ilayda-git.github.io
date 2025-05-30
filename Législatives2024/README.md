@@ -1,63 +1,81 @@
-# **🗳️ Élections législatives 2024 - Tour 1**
+# 🗳️ Élections législatives 2024 – Tour 1  
+*Analyse statistique des comportements électoraux régionaux en France*
 
-Analyse statistique des comportements électoraux régionaux en France
+## 📚 Description
 
-# 📌 Description du projet
+Ce projet présente une **analyse statistique approfondie des résultats du premier tour des élections législatives françaises de 2024**, à l’échelle régionale. L’objectif est de mettre en évidence des **dynamiques électorales**, de **repérer des regroupements cohérents** entre régions et partis, et de **comprendre les comportements électoraux** à travers des outils statistiques.
 
-Ce projet vise à explorer les dynamiques politiques régionales lors du premier tour des élections législatives françaises de 2024, à travers une approche statistique rigoureuse. Il s’appuie sur les données officielles des résultats électoraux par région et applique plusieurs méthodes d’analyse de données, notamment :
+L’étude s’appuie notamment sur :
+- l’**Analyse en Composantes Principales (ACP)**,
+- l’**Analyse des Correspondances Multiples (ACM)**,
+- et des techniques de **clustering** (classification hiérarchique et consolidation).
 
-ACP (Analyse en Composantes Principales)
-ACM (Analyse des Correspondances Multiples)
-Clustering (classification hiérarchique et par consolidation)
-L’objectif est de mettre en lumière les spécificités régionales, de repérer des regroupements politiques cohérents, et de comprendre les différences de comportements électoraux entre la métropole et l’Outre-mer.
+---
 
-# 👩‍💻 Réalisé par
+## 👥 Auteurs
 
-Hafsa MOUSALLI
-Imane LEMKHAYER
-Ilayda YILMAZ
+- **MOUSALLI Hafsa**  
+- **LEMKHAYER Imane**  
+- **YILMAZ Ilayda**
 
-# 📁 Contenu du dépôt
+---
 
-- Elections-Legislative_final.Rmd : Rapport complet en R Markdown avec visualisations et analyses détaillées.
-- resultats-definitifs-par-regions.csv : Données brutes issues d’OpenDataUniversity.
-- resultat_combiné_région_1.csv : Base transformée, regroupant les partis politiques en grandes familles.
-- Election_Legislative_final.pdf : Version PDF générée du rapport (optionnelle à inclure si demandée).
+## 🗂️ Contenu du dépôt
 
-# 📊 Méthodologie
+- `ElectionLegislative-24.Rmd` – Rapport complet (code + analyse).
+- `ElectionLegislative-24.pdf` – Version PDF du rapport (si générée).
+- `resultats-definitifs-par-regions.csv` – Données brutes.
+- `resultat_combiné_région_1.csv` – Données nettoyées et agrégées.
+- Fichiers PNG – Graphiques générés automatiquement.
 
-- Préparation des données
-- Nettoyage des fichiers bruts
-- Regroupement des partis en 6 grandes familles politiques
-- Calcul de nouveaux indicateurs (% exprimés, % votants, etc.)
-- Analyse exploratoire
-- Visualisation des corrélations entre variables électorales
-- Comparaison des taux de participation, d’abstention, de votes blancs/nuls
-ACP
-- Étude des contributions des variables et des régions
-- Visualisation des oppositions entre métropole et Outre-mer
-ACM
-- Transformation des pourcentages de voix en modalités (Faible/Moyen/Fort)
-- Étude des relations entre partis politiques et régions
-Clustering
-- Segmentation des régions selon leur profil électoral
-- Analyse des clusters avec parangons et individus "typiques"
+---
 
-# 📦 Packages utilisés
+## 🧪 Méthodologie
 
-Ce projet utilise notamment les packages R suivants :
+### 1. **Préparation des données**
+- Extraction depuis OpenDataUniversity.
+- Regroupement des partis en **6 grandes familles politiques**.
+- Calcul de pourcentages : exprimés/inscrits, blancs/nuls, etc.
 
-- tidyverse, FactoMineR, factoextra, ggplot2, ggcorrplot, skimr,
-- kableExtra, modelsummary, explor, cowplot, ggpubr, gridExtra
+### 2. **Analyse statistique**
+- **ACP** : Étude des corrélations et contributions des variables.
+- **ACM** : Transformation en modalités (Faible, Moyen, Fort).
+- **Clustering** : Classification des régions selon leur profil politique.
 
+---
 
-# 🧠 Résultats principaux
+## 📈 Résultats clés
 
-- Les régions d’Outre-mer se démarquent par des taux de participation plus faibles et une plus grande part de votes blancs/nuls.
-- La métropole présente une homogénéité plus marquée, avec des variations plus subtiles entre les régions.
-- L’extrême droite et l’Union de la Gauche constituent les deux grands pôles électoraux opposés.
-- Le clustering révèle deux grands profils régionaux selon le soutien aux partis et le niveau de polarisation politique.
+- **Les régions d’Outre-mer** affichent une participation plus faible et des votes blancs/nuls plus fréquents.
+- **La métropole** est plus homogène dans ses comportements électoraux.
+- Deux grands blocs électoraux dominent :  
+  ➤ **Union de la Gauche**  
+  ➤ **Extrême Droite**  
+- Le **clustering** révèle deux profils régionaux distincts :  
+  1. Régions fortement politisées, marquées par la polarisation.  
+  2. Régions peu peuplées, aux dynamiques électorales plus locales.
 
-# 📝 Licence
+---
 
-Ce projet est réalisé dans un cadre académique. Vous êtes libre de le consulter, de l'adapter ou de vous en inspirer pour des projets similaires à but pédagogique.
+## 📦 Technologies
+
+Ce projet utilise R avec les packages suivants :
+
+- `tidyverse`, `FactoMineR`, `factoextra`, `ggplot2`, `ggcorrplot`  
+- `explor`, `skimr`, `modelsummary`, `kableExtra`, `ggpubr`, etc.
+
+---
+
+## 📝 Licence
+
+Projet académique à but pédagogique.  
+Libre d’utilisation, de consultation et de réutilisation à des fins non commerciales.
+
+---
+
+## 📌 Aperçu
+
+![Aperçu](Elections-Législative_final.pdf)
+
+---
+
