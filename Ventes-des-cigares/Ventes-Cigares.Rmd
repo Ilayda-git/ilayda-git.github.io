@@ -1,0 +1,365 @@
+---
+title: "Économétrie"
+author: "LEMKHAYER Imane - YILMAZ Ilayda - MOUSALLI Hafsa"
+output:
+  html_document:
+    theme: cosmo
+    toc: true
+    toc_title: "Plan"
+    toc_location: left
+    toc_float: true
+    number_sections: true
+    highlight: haddock
+    embed_resources: true
+    css: styles.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+require(data.table)
+require(stargazer)
+require(foreign)
+library(knitr)
+
+library(plm)  
+library(dplyr)  
+library(ggplot2) 
+library(patchwork)
+```
+
+
+
+# Présentation de la question de recherche
+
+Dans ce projet, nous cherchons à répondre à la question de recherche suivante : **Quels sont les déterminants des ventes de cigares et comment les caractéristiques économiques, démographiques et les variations temporelles influencent-elles ces ventes ?**
+
+L’objectif principal est de comprendre les principaux facteurs influençant les ventes de cigares et d'évaluer l'importance relative de chacun. Cette analyse permettra de mieux appréhender les comportements de consommation, les impacts des politiques tarifaires, et les dynamiques économiques et démographiques à travers les régions et les années.
+
+Pour répondre à cette question, nous utilisons la base de données *cigar* et appliquons plusieurs modèles économétriques, notamment le modèle poolé, le modèle à effets fixes et le modèle à effets aléatoires. Cette approche méthodologique nous permettra de mettre en évidence les contributions respectives des facteurs économiques (prix, taxes, revenus), des caractéristiques démographiques (population) et des tendances temporelles sur les ventes de cigares.
+
+
+## Hypothèses de recherhe 
+
+- **H1 :** Une augmentation du prix moyen des cigares (*price*) réduit les ventes totales (*sales*) en raison de la sensibilité au prix des consommateurs. En effet, plus le prix est élevé, moins de consommateurs seront incités à consommer.
+- **H2 :** Une population totale plus importante (*pop*) entraîne une augmentation des ventes totales, reflétant une demande agrégée plus élevée.
+- **H3 :** La proportion de la population âgée de 16 ans et plus (*pop16*) a un effet positif sur les ventes, cette tranche d’âge étant plus susceptible de consommer des cigares.
+- **H4 :** Une hausse du revenu national disponible (*ndi*) accroît les ventes.
+- **H5 :** Une augmentation de l’indice des prix à la consommation (*cpi*) peut réduire les ventes, reflétant une diminution du pouvoir d’achat des consommateurs.
+- **H6 :** La proportion de la population consommant des cigares (*pimin*) influence positivement les ventes totales.
+- **H7** : Les caractéristiques géographiques influencent les ventes de cigares, par exemple, des ventes plus élevées dans les grandes villes.
+
+
+# Présentation des données
+
+```{r}
+library(plm)
+data("Cigar")
+
+```
+
+
+Notre base contient 1380 observations et 9 variables. 
+
+- state: Région ou localisation géographique
+- year:  Année de l’observation. Cette variable nous permet de capturer les variations temporelles (1963-1992).
+- price: Prix moyen des cigares, en dollars américains par paquet
+- pop: Population totale, en millions d'habitants.
+- pop16 : Proportion de la population dans la tranche d’âge  16 ans et plus
+- cpi : Indice des prix à la consommation
+- ndi : Revenu national disponible en milliards de dollars américains
+- sales : la valeur totale des ventes de cigares en millions de paquets.
+- pimin : proportion de la population qui consomme des cigares ou produits similaires exprimée en pourcentage.
+
+
+# Statistiques descriptives
+
+Dans un premier temps, nous avons fait un code qui calcule les statistiques descriptives (minimum, moyenne, maximum, médiane, écart-type) pour toutes les variables quantitatives, à l'exception des colonnes 'state' et 'year'. Puis les résultats sont affichés sous forme de tableau. 
+
+## Fonction 
+```{r}
+f <- function(data) round(c(
+  Min = min(data, na.rm = TRUE),
+  Mean = mean(data, na.rm = TRUE),
+  Max = max(data, na.rm = TRUE),
+  Median = median(data, na.rm = TRUE),
+  Sd = sd(data, na.rm = TRUE)
+), 3)
+
+# Sélection des variables quantitatives sauf 'state' et 'year'
+numerical_vars <- Cigar |>  select(-state, -year) |>  select_if(is.numeric)
+
+descrstat <- apply(numerical_vars, 2, f) |> t() |> round(2)
+descrstat
+
+```
+
+La fonction summary() permet d'obtenir un résumé statistique global des données avec toutes les variables cette fois ci.
+
+```{r}
+summary(Cigar)
+```
+
+Interpretation : 
+
+- price : le prix varie de 23,4 à 201,9, ce qui pourrait influencer la consommation de manière significative.
+- cpi : on a une moyenne de 73,6, un minimum de 30,6 et un maximum de 140,3. on peut voir qu'il y a une augmentation qui reflète l'inflation au cours des années.
+- ndi : on a une moyenne de 7 525, avec un maximum de 23 074. Cette variable est importante pour analyser la demande, car elle représente le pouvoir d'achat.
+- sales : Varie de 53,4 à 297,9 qui pourrait refléter des différences significatives de consommation entre les États ou les années.
+
+
+## Visualisation
+```{r, warning=FALSE, echo=FALSE, fig.width=10}
+plot1 <- ggplot(Cigar, aes(x = sales)) +
+  geom_histogram(binwidth = 5, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution des ventes de cigares", 
+       x = "Ventes (millions de paquets)", 
+       y = "Fréquence") +
+  theme_minimal()
+
+mean_sales <- Cigar |> 
+  group_by(year) |> 
+  summarise(mean_sales = mean(sales, na.rm = TRUE))
+
+plot2 <- ggplot(mean_sales, aes(x = year, y = mean_sales)) +
+  geom_line(color = "blue", size = 1.2) +
+  geom_point(color = "darkblue", size = 2) +
+  labs(title = "Évolution des ventes moyennes de cigares par année", 
+       x = "Année", 
+       y = "Ventes moyennes (millions de paquets)") +
+  theme_minimal()
+
+plot1 + plot2
+
+
+```
+Distribution des ventes de cigares : 
+
+- On observe une distribution asymétrique à droite, ce qui signifie qu'une minorité des observations représente des ventes très élevées.
+- Cela peut refléter des différences entre les États en termes de consommation.
+
+Évolution des ventes moyennes de cigares par année : 
+
+- Le graphique montre une tendance générale : les ventes augmentent dans les années 70, atteignent un pic, puis diminuent fortement dans les années 80 et 90.
+- Cette diminution peut être due à des politiques publiques (taxes) ou à un changement de comportement des consommateurs.
+
+# Présentation des différentes Modèles 
+
+## Modèle poolé 
+
+- Le modèle Pooled OLS considère toutes les observations comme une seule entité sans distinction entre les unités temporelles et géographiques. Il ne prend pas en compte les effets fixes ou aléatoires.
+
+```{r}
+pooled_model <- plm(sales ~ price + pop + pop16 + cpi + ndi + pimin,
+                   data = Cigar,
+                   model = "pooling",
+                   effect = "individual",
+                   index = c("state", "year"))
+
+summary(pooled_model)
+```
+
+Dans un premier temps, nous interprétons les coefficients des variables afin de comprendre leur influence sur les ventes de cigares :
+
+- Price : Lorsqu’une augmentation de 1 dollar du prix moyen par paquet intervient, les ventes diminuent en moyenne de 1,5276 millions de paquets. Cela reflète une élasticité-prix négative, typique pour ce type de produit.
+- NDI : Une hausse de 1 milliard de dollars du revenu national disponible est associée à une augmentation moyenne de 0,00604 millions de paquets vendus. Cela traduit un effet revenu positif.
+- Pimin : Une augmentation de 1 % de cette proportion entraîne une hausse moyenne de 0,59 million de paquets vendus, ce qui souligne l’impact du comportement démographique sur la demande.
+Dans un second temps, nous examinons la p-value de chaque variable afin d’évaluer leur significativité statistique, et donc leur impact réel dans le modèle.
+
+Dans notre cas, les variables price, ndi et pimin sont toutes significatives au seuil de 1 % , ce qui confirme leur influence importante sur les ventes. En revanche, les variables pop (taille de la population), pop16 (proportion de la population âgée de 16 ans et plus) et cpi (indice des prix à la consommation) ne sont pas significatives, ce qui suggère qu’elles n’exercent pas d’effet direct sur les ventes dans ce modèle.
+
+
+
+**Autres résultats statistiques**
+
+- R² = 0,24614 : Cela signifie que le modèle explique environ 24,6 % de la variance des ventes de cigares. Ce résultat, relativement faible, suggère que d’autres facteurs non pris en compte pourraient influencer la demande.
+- R² ajusté = 0,2485 : Ce score légèrement supérieur confirme que le modèle bénéficie d’une relative cohérence malgré sa faible puissance explicative.
+- F-statistic = 74,7167 (p-value = 2,22e−16) : Cette statistique montre que le modèle dans son ensemble est hautement significatif. Elle indique que les variables explicatives prises ensemble permettent de mieux prédire les ventes que le hasard.
+
+**Conclusion**
+
+L’analyse menée à partir du modèle poolé met en évidence les variables les plus influentes sur la demande de cigares.
+
+- Le prix joue un rôle clé : son effet négatif et significatif indique qu’une augmentation du prix entraîne une baisse des ventes. Ce résultat confirme que la demande de cigares est sensible aux variations de prix.
+- Le revenu national disponible a un effet positif, traduisant un pouvoir d’achat accru favorisant la consommation.
+- La proportion minimale de la population consommatrice impacte aussi positivement les ventes, ce qui est logique, car une population plus encline à consommer entraîne une demande plus forte.
+
+
+À l’inverse, la taille totale de la population (pop) ne présente pas d’effet significatif. Ce résultat peut surprendre, mais il est compensé par le fait que seule la population âgée de 16 ans et plus est pertinente pour la consommation de cigares, ce qui rend cette sous-catégorie plus explicative.
+
+Enfin, la faible valeur du R² suggère que le modèle ne capture pas toutes les dimensions influençant les ventes. Parmi les variables absentes qui pourraient améliorer la précision du modèle, on peut citer :
+
+- Le niveau de taxation sur les cigares, qui influence directement leur prix et donc leur consommation 
+- Le niveau d’éducation, souvent corrélé à une meilleure connaissance des risques liés au tabac, ce qui pourrait réduire la demande.
+En résumé, ce modèle fournit une première lecture utile des déterminants de la demande de cigares, tout en indiquant les pistes d’amélioration à explorer pour affiner l’analyse.
+
+
+## Modèle à effets fixes (Within)
+
+- Les différences non observées entre les individus (hétérogénéité individuelle) sont corrélées avec les variables explicatives.
+
+```{r}
+within_model <- plm(sales ~ price + pop + pop16 + cpi + ndi + pimin - 1,
+                   data = Cigar,
+                   model = "within",  
+                   index = c("state", "year"))
+summary(within_model)
+
+
+```
+Dans ce modèle, la constante a été supprimée, ce qui permet de mieux identifier l’effet propre de chaque variable sur les ventes de cigares. Voici l’interprétation des coefficients :
+
+- Price : Une augmentation de 1 dollar du prix moyen par paquet entraîne, en moyenne, une baisse de 0,647 million de paquets vendus.
+- Pop : Une hausse de 1 million d’habitants dans la population totale est associée à une diminution de 0,00643 million de paquets vendus.
+- Pop16 : Une augmentation de 1 % de la population âgée de 16 ans et plus génère, en moyenne, une hausse de 0,00862 million de paquets.
+- CPI : Une hausse de 1 point de l’indice des prix à la consommation est liée à une augmentation moyenne de 0,9395 million de paquets vendus.
+- NDI : Une augmentation de 1 milliard de dollars du revenu national disponible conduit, en moyenne, à une baisse de 0,00533 million de paquets vendus.
+- Pimin : Une hausse de 1 % de la proportion minimale de consommateurs de cigares entraîne une augmentation moyenne de 0,21836 million de paquets.
+
+L’ensemble des variables du modèle est statistiquement significatif, ce qui renforce la validité des relations mises en évidence.
+
+**Résultats statistiques**
+
+- R² = 0,4426 : Le modèle explique environ 44,26 % de la variance des ventes de cigares, soit une performance bien supérieure à celle du modèle poolé. Néanmoins, une part significative de la variation reste inexpliquée.
+- R² ajusté = 0,42119 : Ce score confirme l’adéquation du modèle tout en tenant compte du nombre de variables.
+- F-statistic = 175,748 (p = 2,22e−16) : La statistique de Fisher est extrêmement significative, indiquant que l’ensemble des variables du modèle contribue efficacement à l’explication des ventes.
+
+
+**Conclusion**
+
+Le modèle à effets fixes (EF) se révèle plus performant que le modèle poolé :
+
+- Avec un R² de 44,26 %, il explique une part nettement plus importante de la variance des ventes de cigares.
+- Contrairement au modèle poolé, dans lequel seules les variables price, ndi et pimin étaient significatives, toutes les variables du modèle EF le sont. Ce gain de significativité s’explique par la capacité du modèle à contrôler les effets spécifiques non observés, comme les différences régionales ou temporelles. Ainsi, des relations qui étaient auparavant masquées sont désormais visibles.
+- La statistique F plus élevée dans le modèle EF indique également un meilleur ajustement global. En intégrant les spécificités des unités (par exemple, les régions ou les années), le modèle capture des dimensions ignorées dans le modèle poolé, qui suppose une homogénéité entre les observations.
+
+En somme, le modèle à effets fixes offre une analyse plus robuste et plus fine des déterminants des ventes de cigares. Toutefois, son pouvoir explicatif reste partiel, ce qui suggère l’importance d’intégrer d’autres variables explicatives, telles que :
+
+- Les politiques fiscales (ex. : taxation du tabac),
+- Les habitudes culturelles de consommation,
+- Les campagnes de sensibilisation sur les risques du tabac.
+
+Ces facteurs, non intégrés dans le modèle actuel, pourraient renforcer considérablement la capacité explicative du modèle et améliorer la compréhension de la dynamique de la demande en cigares.
+
+
+## Modèle à effet aléatoire
+
+- Le modèle Random Effects suppose que les variations entre unités sont aléatoires et indépendantes des autres unités.
+
+```{r}
+random_model <- plm(sales ~ price + pop + pop16 + cpi + ndi + pimin - 1,
+                   data = Cigar,
+                   model = "random", 
+                   index = c("state", "year"))
+summary(random_model)
+
+```
+
+- Price : Une augmentation de 1 dollar du prix moyen par paquet entraîne, en moyenne, une diminution de 0,69 million de paquets vendus. L’effet prix reste négatif, confirmant la sensibilité des ventes à ce facteur.
+- Pop : Une hausse de 1 million d’habitants dans la population totale est associée à une augmentation moyenne de 0,0115 million de paquets vendus.
+- Pop16 : Une augmentation de 1 % de la population âgée de 16 ans et plus est liée à une baisse moyenne de 0,008 million de paquets vendus. Ce résultat, contre-intuitif, peut indiquer un effet structurel ou démographique plus complexe.
+- CPI : Une hausse de 1 point de l’indice des prix à la consommation correspond à une augmentation moyenne de 1,23 million de paquets vendus. Ce résultat suggère une corrélation positive, possiblement indirecte, entre inflation générale et ventes de cigares.
+- NDI : Une augmentation de 1 milliard de dollars du revenu national disponible entraîne une baisse moyenne de 0,0062 million de paquets vendus, ce qui peut traduire un changement de comportement de consommation avec la hausse du pouvoir d’achat.
+
+**Résultats statistiques**
+
+- R² = 0,3519 : Le modèle explique environ 35,19 % de la variance des ventes de cigares. Ce niveau reste modeste, ce qui suggère que de nombreux facteurs déterminants ne sont pas inclus dans le modèle.
+- R² ajusté = 0,34954 : Ce score confirme la relative cohérence du modèle, mais montre également ses limites en matière de pouvoir explicatif.
+
+**Conclusion**
+
+Le modèle à effets aléatoires permet de faire ressortir certaines relations intéressantes, mais son pouvoir explicatif demeure limité :
+
+- Toutes les variables sont significatives, à l’exception de pimin, ce qui montre que la majorité des facteurs inclus ont un impact statistiquement validé sur les ventes.
+- Avec un R² de 35,19 %, ce modèle est plus performant que le modèle poolé, mais moins explicatif que le modèle à effets fixes (EF), qui captait une part plus importante de la variance.
+- On observe que certains coefficients, notamment ceux de price ou pop, sont plus faibles que dans le modèle EF. Cela peut s'expliquer par le fait que le modèle EA n’isole pas les effets spécifiques propres aux unités d’observation, ce qui peut diluer certains effets réels.
+- Ce modèle met en évidence les limites des effets aléatoires lorsque les effets spécifiques sont en réalité corrélés aux variables explicatives – ce qui renforcerait l’intérêt d’un modèle à effets fixes dans ce contexte.
+Perspectives
+
+Bien que le modèle à effets aléatoires fournisse des indications utiles, il reste insuffisant pour capturer toute la complexité de la demande en cigares. Des variables supplémentaires comme :
+
+- les politiques de taxation du tabac,
+- les campagnes de prévention,
+- ou encore le niveau d’éducation
+
+
+# Choix du modèle préféré et sa justification
+## Test de Hausman 
+```{r}
+hausman_test <- phtest(within_model, random_model)
+hausman_test
+
+if (hausman_test$p.value < 0.05) {
+  cat("Le modèle à effets fixes est préféré car les effets individuels sont corrélés aux variables explicatives.\n")
+} else {
+  cat("Le modèle à effets aléatoires est préféré car les effets individuels sont indépendants des variables explicatives.\n")
+}
+
+
+```
+Ho = les effets individuels ci ne sont pas corrélés aux variables explicatives 
+
+H1 = les effets individuels ci sont corrélés aux variables explicatives 
+
+Si on rejette H0, alors il faut préférer des modèles Within (différences premieres ou effets fixes)
+
+Si on ne rejette pas H0, alors il faut préférer des modèles à effets aléatoires (random- fixed effects).
+
+## Test de Fisher 
+
+```{r}
+# Comparaison entre Effets Fixes et Pooled
+Fisher <- pFtest(within_model, pooled_model)
+
+if (Fisher$p.value < 0.05) {
+  cat("Le modèle à effets fixes est préféré car les effets individuels sont significatifs et corrélés aux variables explicatives.\n")
+} else {
+  cat("Le modèle Pooled est préféré car les effets individuels ne sont pas significatifs.\n")
+}
+
+
+```
+
+H0 = pas d'effets de panel, tous les ci sont = 0
+
+H1 = effets de panels à prendre en compte, au moins un ci est différent de 0
+
+Si on rejette H0, alors il faut préférer un modele à effets fixes
+Si on ne rejette pas H0, alors il faut préférer des modèles MCO poolés.
+
+
+## Test de Breusch-Pagan
+
+```{r}
+# Comparaison entre Pooled et Effets Aléatoires
+Breusch <- plmtest(pooled_model, type = "bp")
+
+if (Breusch$p.value < 0.05) {
+  cat("Le modèle à effets aléatoires est préféré car il y a une hétérogénéité significative entre les groupes.\n")
+} else {
+  cat("Le modèle Pooled est préféré car aucune hétérogénéité significative entre les groupes n'est détectée.\n")
+}
+
+```
+
+H0 = pas d'effets de panel, tous les individus ont le même ci
+
+H1 = effets de panels à prendre en compte
+
+Si on rejette H0, alors il faut preferer un modele a effets aleatoires.
+Si on ne rejette pas H0, alors il faut preferer des modeles MCO pooles.
+
+
+
+
+# Conclusion
+
+Ce projet visait à déterminer le modèle économétrique le plus pertinent pour analyser les ventes de cigares à partir de plusieurs variables explicatives. Trois approches ont été comparées : le modèle poolé, le modèle à effets fixes (EF) et le modèle à effets aléatoires (EA).
+
+Le modèle poolé considère toutes les observations comme homogènes, sans tenir compte des spécificités propres à chaque région ou période. Cette hypothèse peut toutefois masquer des effets importants liés aux différences structurelles entre unités. Le modèle à effets fixes permet de corriger ce biais en intégrant des effets propres à chaque unité, qu’ils soient liés au temps ou à l’espace, même lorsqu’ils sont corrélés aux variables explicatives. Le modèle à effets aléatoires, de son côté, suppose que ces effets spécifiques sont aléatoires et indépendants des variables explicatives.
+
+Pour orienter le choix du modèle, plusieurs tests ont été menés. Le test de Hausman a permis de vérifier si les effets spécifiques étaient corrélés aux variables explicatives. Le rejet de l’hypothèse d’indépendance a conduit à privilégier le modèle à effets fixes. Le test de Fisher a confirmé que les effets spécifiques étaient significatifs, ce qui justifie à nouveau le recours au modèle EF plutôt qu’au modèle poolé. Enfin, le test de Breusch-Pagan a montré que le modèle à effets aléatoires était préférable au modèle poolé, mais pas au modèle EF.
+
+Les résultats statistiques renforcent cette conclusion. Le modèle à effets fixes présente un R² de 0,4426, supérieur à celui du modèle EA (0,3519) et du modèle poolé (0,246). Il permet donc de mieux expliquer la variation des ventes de cigares. En outre, toutes les variables incluses dans le modèle EF se sont révélées significatives, ce qui témoigne de la qualité et de la cohérence de l’estimation.
+
+En définitive, le modèle à effets fixes apparaît comme le plus adapté pour analyser les ventes de cigares. Il offre une meilleure performance statistique, tient compte des spécificités régionales et temporelles, et permet de corriger les biais liés à des effets non observés. Il constitue ainsi le cadre le plus robuste et le plus fiable pour cette étude.
