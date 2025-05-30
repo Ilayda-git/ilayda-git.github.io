@@ -19,36 +19,36 @@ Ilayda YILMAZ
 
 # 📁 Contenu du dépôt
 
-ElectionLegislative-24.Rmd : Rapport complet en R Markdown avec visualisations et analyses détaillées.
-resultats-definitifs-par-regions.csv : Données brutes issues d’OpenDataUniversity.
-resultat_combiné_région_1.csv : Base transformée, regroupant les partis politiques en grandes familles.
-ElectionLegislative-24.pdf : Version PDF générée du rapport (optionnelle à inclure si demandée).
+- Elections-Legislative_final.Rmd : Rapport complet en R Markdown avec visualisations et analyses détaillées.
+- resultats-definitifs-par-regions.csv : Données brutes issues d’OpenDataUniversity.
+- resultat_combiné_région_1.csv : Base transformée, regroupant les partis politiques en grandes familles.
+- Election_Legislative_final.pdf : Version PDF générée du rapport (optionnelle à inclure si demandée).
 
 # 📊 Méthodologie
 
-Préparation des données
-Nettoyage des fichiers bruts
-Regroupement des partis en 6 grandes familles politiques
-Calcul de nouveaux indicateurs (% exprimés, % votants, etc.)
-Analyse exploratoire
-Visualisation des corrélations entre variables électorales
-Comparaison des taux de participation, d’abstention, de votes blancs/nuls
+- Préparation des données
+- Nettoyage des fichiers bruts
+- Regroupement des partis en 6 grandes familles politiques
+- Calcul de nouveaux indicateurs (% exprimés, % votants, etc.)
+- Analyse exploratoire
+- Visualisation des corrélations entre variables électorales
+- Comparaison des taux de participation, d’abstention, de votes blancs/nuls
 ACP
-Étude des contributions des variables et des régions
-Visualisation des oppositions entre métropole et Outre-mer
+- Étude des contributions des variables et des régions
+- Visualisation des oppositions entre métropole et Outre-mer
 ACM
-Transformation des pourcentages de voix en modalités (Faible/Moyen/Fort)
-Étude des relations entre partis politiques et régions
+- Transformation des pourcentages de voix en modalités (Faible/Moyen/Fort)
+- Étude des relations entre partis politiques et régions
 Clustering
-Segmentation des régions selon leur profil électoral
-Analyse des clusters avec parangons et individus "typiques"
+- Segmentation des régions selon leur profil électoral
+- Analyse des clusters avec parangons et individus "typiques"
 
 # 📦 Packages utilisés
 
 Ce projet utilise notamment les packages R suivants :
 
-tidyverse, FactoMineR, factoextra, ggplot2, ggcorrplot, skimr,
-kableExtra, modelsummary, explor, cowplot, ggpubr, gridExtra
+- tidyverse, FactoMineR, factoextra, ggplot2, ggcorrplot, skimr,
+- kableExtra, modelsummary, explor, cowplot, ggpubr, gridExtra
 
 
 # 🧠 Résultats principaux
