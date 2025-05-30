@@ -1,8 +1,6 @@
 # Détection Précoce des AVC par Machine Learning
 
 **Auteurs** : Mathias Depussay · Ilayda Yilmaz  
-**Date** : Avril 2025
-
 ---
 
 ## Objectif
