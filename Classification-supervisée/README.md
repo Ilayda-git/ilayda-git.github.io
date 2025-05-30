@@ -50,16 +50,6 @@ Il permet de détecter efficacement les patients à risque, malgré une précisi
 
 ---
 
-## Fichiers du projet
-
-├── AVC.pdf
-├── README.md 
-├── Données
-├── code-complet.qmd
-
-
----
-
 ## Technologies utilisées
 
 - **Langage** : R  
