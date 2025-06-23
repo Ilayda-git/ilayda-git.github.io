@@ -1,6 +1,8 @@
 # Élections législatives 2024 – Tour 1  
 **Analyse statistique des dynamiques électorales régionales**
 
+**Auteures :** Imane Lemkhayer · Ilayda Yilmaz · Hafsa Mousalli
+
 ## Présentation
 
 Ce projet propose une analyse statistique des résultats du **premier tour des élections législatives françaises de 2024**, à l’échelle régionale. À l’aide de méthodes exploratoires et multivariées, l’objectif est de comprendre les comportements électoraux et les regroupements politiques dans un contexte marqué par la diversité territoriale.
