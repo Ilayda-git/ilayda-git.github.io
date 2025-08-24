@@ -54,10 +54,3 @@ Il permet de détecter efficacement les patients à risque, malgré une précisi
 - **Packages principaux** : `tidymodels`, `themis`, `xgboost`, `recipes`, `dplyr`, `ggplot2`
 
 ---
-
-## Conclusion
-
-Le projet démontre qu’il est possible d’utiliser des modèles de machine learning performants pour anticiper les risques d’AVC à partir de données simples.  
-L'approche adoptée privilégie la **détection des cas réels**, ce qui est crucial pour la prévention dans le domaine de la santé.
-
----
