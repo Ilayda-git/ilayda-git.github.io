@@ -1,0 +1,1 @@
+Ce repository regroupe des projets académiques : un dashboard interactif, des analyses en machine learning (supervisé et non supervisé) ainsi que des travaux économétriques réalisés durant mon parcours universitaire
