@@ -1,6 +1,7 @@
 # Économétrie – Analyse des ventes de cigares
 
 **Auteures :** Imane Lemkhayer · Ilayda Yilmaz · Hafsa Mousalli
+lien  : https://ilayda-git.github.io/Ventes-des-cigares/Ventes-Cigares.html
 
 ---
 
