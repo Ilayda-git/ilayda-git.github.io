@@ -49,9 +49,4 @@ Cette segmentation reflète les contrastes entre enjeux nationaux et préoccupat
   - `tidyverse`, `FactoMineR`, `factoextra`, `explor`
   - `ggplot2`, `ggcorrplot`, `kableExtra`, `skimr`, `ggpubr`, `HCPC`
 
-## Auteurs
-
-- **YILMAZ Ilayda**
-- **MOUSALLI Hafsa**  
-- **LEMKHAYER Imane**  
 
