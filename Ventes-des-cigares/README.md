@@ -8,7 +8,8 @@
 
 Ce projet a pour objectif d’identifier les principaux déterminants des ventes de cigares aux États-Unis à partir de données de panel.  
 L’étude mobilise différents modèles économétriques afin de mesurer l’influence des facteurs économiques, démographiques et temporels. 
-lien : https://ilayda-git.github.io/Ventes-des-cigares/Ventes-Cigares.html
+lien  : https://ilayda-git.github.io/Ventes-des-cigares/Ventes-Cigares.html
+
 ---
 
 ## Données
