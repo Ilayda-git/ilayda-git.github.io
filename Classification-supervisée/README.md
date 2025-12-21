@@ -1,12 +1,14 @@
 # Détection Précoce des AVC par Machine Learning
 
 **Auteurs** : Mathias Depussay · Ilayda Yilmaz  
+
 ---
 
 ## Objectif
 
 Ce projet vise à développer un modèle de machine learning capable de **prédire la survenue d’un AVC** (Accident Vasculaire Cérébral) à partir de **données médicales et socio-démographiques**.  
 L'enjeu principal est de maximiser la **détection des individus à risque**, afin d'améliorer la prévention en milieu médical.
+**Auteur** : Mathias Depussay - Ilayda Yilmaz
 
 ---
 
